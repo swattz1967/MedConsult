@@ -572,6 +572,18 @@ export const ListAppointmentsResponseItem = zod.object({
     weightUnit: zod.enum(["kg", "lbs", "null"]).nullish(),
     declarationSigned: zod.boolean(),
     declarationSignedAt: zod.string().nullish(),
+    earnedFees: zod
+      .number()
+      .nullish()
+      .describe(
+        "Sum of fees for completed appointments (only present on list endpoint)",
+      ),
+    pendingFees: zod
+      .number()
+      .nullish()
+      .describe(
+        "Sum of fees for scheduled appointments (only present on list endpoint)",
+      ),
     createdAt: zod.string(),
     updatedAt: zod.string(),
   }),
@@ -661,6 +673,18 @@ export const GetAppointmentResponse = zod.object({
     weightUnit: zod.enum(["kg", "lbs", "null"]).nullish(),
     declarationSigned: zod.boolean(),
     declarationSignedAt: zod.string().nullish(),
+    earnedFees: zod
+      .number()
+      .nullish()
+      .describe(
+        "Sum of fees for completed appointments (only present on list endpoint)",
+      ),
+    pendingFees: zod
+      .number()
+      .nullish()
+      .describe(
+        "Sum of fees for scheduled appointments (only present on list endpoint)",
+      ),
     createdAt: zod.string(),
     updatedAt: zod.string(),
   }),
@@ -743,6 +767,18 @@ export const UpdateAppointmentResponse = zod.object({
     weightUnit: zod.enum(["kg", "lbs", "null"]).nullish(),
     declarationSigned: zod.boolean(),
     declarationSignedAt: zod.string().nullish(),
+    earnedFees: zod
+      .number()
+      .nullish()
+      .describe(
+        "Sum of fees for completed appointments (only present on list endpoint)",
+      ),
+    pendingFees: zod
+      .number()
+      .nullish()
+      .describe(
+        "Sum of fees for scheduled appointments (only present on list endpoint)",
+      ),
     createdAt: zod.string(),
     updatedAt: zod.string(),
   }),
@@ -808,6 +844,18 @@ export const ListCustomersResponseItem = zod.object({
   weightUnit: zod.enum(["kg", "lbs", "null"]).nullish(),
   declarationSigned: zod.boolean(),
   declarationSignedAt: zod.string().nullish(),
+  earnedFees: zod
+    .number()
+    .nullish()
+    .describe(
+      "Sum of fees for completed appointments (only present on list endpoint)",
+    ),
+  pendingFees: zod
+    .number()
+    .nullish()
+    .describe(
+      "Sum of fees for scheduled appointments (only present on list endpoint)",
+    ),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -861,6 +909,18 @@ export const GetCustomerResponse = zod.object({
   weightUnit: zod.enum(["kg", "lbs", "null"]).nullish(),
   declarationSigned: zod.boolean(),
   declarationSignedAt: zod.string().nullish(),
+  earnedFees: zod
+    .number()
+    .nullish()
+    .describe(
+      "Sum of fees for completed appointments (only present on list endpoint)",
+    ),
+  pendingFees: zod
+    .number()
+    .nullish()
+    .describe(
+      "Sum of fees for scheduled appointments (only present on list endpoint)",
+    ),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -911,6 +971,18 @@ export const UpdateCustomerResponse = zod.object({
   weightUnit: zod.enum(["kg", "lbs", "null"]).nullish(),
   declarationSigned: zod.boolean(),
   declarationSignedAt: zod.string().nullish(),
+  earnedFees: zod
+    .number()
+    .nullish()
+    .describe(
+      "Sum of fees for completed appointments (only present on list endpoint)",
+    ),
+  pendingFees: zod
+    .number()
+    .nullish()
+    .describe(
+      "Sum of fees for scheduled appointments (only present on list endpoint)",
+    ),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -1541,6 +1613,18 @@ export const GetUpcomingAppointmentsResponseItem = zod.object({
     weightUnit: zod.enum(["kg", "lbs", "null"]).nullish(),
     declarationSigned: zod.boolean(),
     declarationSignedAt: zod.string().nullish(),
+    earnedFees: zod
+      .number()
+      .nullish()
+      .describe(
+        "Sum of fees for completed appointments (only present on list endpoint)",
+      ),
+    pendingFees: zod
+      .number()
+      .nullish()
+      .describe(
+        "Sum of fees for scheduled appointments (only present on list endpoint)",
+      ),
     createdAt: zod.string(),
     updatedAt: zod.string(),
   }),

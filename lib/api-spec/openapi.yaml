@@ -1975,6 +1975,12 @@ components:
           type: boolean
         declarationSignedAt:
           type: ["string", "null"]
+        earnedFees:
+          type: ["number", "null"]
+          description: Sum of fees for completed appointments (only present on list endpoint)
+        pendingFees:
+          type: ["number", "null"]
+          description: Sum of fees for scheduled appointments (only present on list endpoint)
         createdAt:
           type: string
         updatedAt:

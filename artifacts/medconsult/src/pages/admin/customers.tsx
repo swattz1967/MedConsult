@@ -19,6 +19,7 @@ import {
   X,
   Loader2,
   AlertCircle,
+  PoundSterling,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -37,13 +38,17 @@ export default function CustomersList() {
   const [isBulkSending, setIsBulkSending] = useState(false);
 
   const stats = useMemo(() => {
-    if (!customers) return { total: 0, signed: 0, unsigned: 0, pct: 0 };
+    if (!customers) return { total: 0, signed: 0, unsigned: 0, pct: 0, totalEarned: 0, totalPending: 0 };
     const signed = customers.filter((c) => c.declarationSigned).length;
+    const totalEarned = customers.reduce((sum, c) => sum + (c.earnedFees ?? 0), 0);
+    const totalPending = customers.reduce((sum, c) => sum + (c.pendingFees ?? 0), 0);
     return {
       total: customers.length,
       signed,
       unsigned: customers.length - signed,
       pct: customers.length > 0 ? Math.round((signed / customers.length) * 100) : 0,
+      totalEarned,
+      totalPending,
     };
   }, [customers]);
 
@@ -228,6 +233,38 @@ export default function CustomersList() {
             </div>
           </CardContent>
         </Card>
+
+        <Card className="col-span-2 sm:col-span-4">
+          <CardContent className="pt-4 pb-4 flex items-center gap-6 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                <PoundSterling className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Total Earned</div>
+                <div className="text-2xl font-bold leading-tight text-emerald-700">
+                  {isLoading ? <Skeleton className="h-6 w-16" /> : `£${stats.totalEarned.toFixed(2)}`}
+                </div>
+              </div>
+            </div>
+            <div className="h-10 w-px bg-border hidden sm:block" />
+            <div>
+              <div className="text-xs text-muted-foreground">Pending (scheduled)</div>
+              <div className="text-xl font-semibold leading-tight text-muted-foreground">
+                {isLoading ? <Skeleton className="h-5 w-14" /> : `£${stats.totalPending.toFixed(2)}`}
+              </div>
+            </div>
+            <div className="h-10 w-px bg-border hidden sm:block" />
+            <div>
+              <div className="text-xs text-muted-foreground">Pipeline total</div>
+              <div className="text-xl font-semibold leading-tight">
+                {isLoading
+                  ? <Skeleton className="h-5 w-16" />
+                  : `£${(stats.totalEarned + stats.totalPending).toFixed(2)}`}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Compliance bar */}
@@ -349,6 +386,7 @@ export default function CustomersList() {
                 <TableHead className="hidden md:table-cell">Phone</TableHead>
                 <TableHead className="hidden lg:table-cell">Nationality</TableHead>
                 <TableHead>Declaration</TableHead>
+                <TableHead className="hidden xl:table-cell text-right">Revenue</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -362,6 +400,7 @@ export default function CustomersList() {
                     <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-[120px]" /></TableCell>
                     <TableCell className="hidden lg:table-cell"><Skeleton className="h-4 w-[90px]" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                    <TableCell className="hidden xl:table-cell text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
                   </TableRow>
                 ))
@@ -441,6 +480,24 @@ export default function CustomersList() {
                           <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 gap-1 text-xs">
                             <Clock className="h-3 w-3" /> Pending
                           </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="hidden xl:table-cell text-right">
+                        {(customer.earnedFees ?? 0) > 0 || (customer.pendingFees ?? 0) > 0 ? (
+                          <div className="space-y-0.5">
+                            {(customer.earnedFees ?? 0) > 0 && (
+                              <div className="text-sm font-semibold text-emerald-700">
+                                £{(customer.earnedFees ?? 0).toFixed(2)}
+                              </div>
+                            )}
+                            {(customer.pendingFees ?? 0) > 0 && (
+                              <div className="text-xs text-muted-foreground">
+                                +£{(customer.pendingFees ?? 0).toFixed(2)} pending
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">

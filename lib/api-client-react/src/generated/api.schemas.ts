@@ -366,6 +366,16 @@ export interface Customer {
   declarationSigned: boolean;
   /** @nullable */
   declarationSignedAt?: string | null;
+  /**
+   * Sum of fees for completed appointments (only present on list endpoint)
+   * @nullable
+   */
+  earnedFees?: number | null;
+  /**
+   * Sum of fees for scheduled appointments (only present on list endpoint)
+   * @nullable
+   */
+  pendingFees?: number | null;
   createdAt: string;
   updatedAt: string;
 }

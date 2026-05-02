@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, customersTable } from "@workspace/db";
+import { eq, sql, getTableColumns } from "drizzle-orm";
+import { db, customersTable, appointmentsTable } from "@workspace/db";
 import {
   CreateCustomerBody,
   GetCustomerParams,
@@ -15,9 +15,20 @@ const router: IRouter = Router();
 
 router.get("/customers", async (req, res): Promise<void> => {
   const qp = ListCustomersQueryParams.safeParse(req.query);
+  const customerCols = getTableColumns(customersTable);
+  const query = db
+    .select({
+      ...customerCols,
+      earnedFees: sql<number>`COALESCE(SUM(CASE WHEN ${appointmentsTable.status} = 'completed' AND ${appointmentsTable.fee} IS NOT NULL THEN ${appointmentsTable.fee}::numeric ELSE 0 END), 0)::float`,
+      pendingFees: sql<number>`COALESCE(SUM(CASE WHEN ${appointmentsTable.status} = 'scheduled' AND ${appointmentsTable.fee} IS NOT NULL THEN ${appointmentsTable.fee}::numeric ELSE 0 END), 0)::float`,
+    })
+    .from(customersTable)
+    .leftJoin(appointmentsTable, eq(appointmentsTable.customerId, customersTable.id))
+    .groupBy(customersTable.id)
+    .orderBy(customersTable.lastName);
   const customers = qp.success && qp.data.agencyId
-    ? await db.select().from(customersTable).where(eq(customersTable.agencyId, qp.data.agencyId))
-    : await db.select().from(customersTable).orderBy(customersTable.lastName);
+    ? await query.where(eq(customersTable.agencyId, qp.data.agencyId))
+    : await query;
   res.json(customers);
 });
 

@@ -1,4 +1,4 @@
-import { useGetCurrentUser, useListAppointments, useGetCustomer, useUpdateCustomer, useListQuestionnaireResponses, useListConsultationRecords, getGetCustomerQueryKey } from "@workspace/api-client-react";
+import { useGetCurrentUser, useListAppointments, useGetCustomer, useListQuestionnaireResponses, useListConsultationRecords } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -6,14 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { FileText, Calendar, PenTool, CheckCircle2, ClipboardList } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
 export default function CustomerPortal() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
   const { data: user, isLoading: isLoadingUser } = useGetCurrentUser();
   const customerId = user?.customerId ?? undefined;
 
@@ -21,18 +16,6 @@ export default function CustomerPortal() {
   const { data: appointments } = useListAppointments({ customerId });
   const { data: responses } = useListQuestionnaireResponses({ customerId });
   const { data: records } = useListConsultationRecords({ customerId });
-
-  const updateCustomer = useUpdateCustomer();
-
-  const handleSignDeclaration = () => {
-    if (!customerId) return;
-    updateCustomer.mutate({ id: customerId, data: { declarationSigned: true, declarationSignedAt: new Date().toISOString() } }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(customerId) });
-        toast({ title: "Declaration signed successfully" });
-      }
-    });
-  };
 
   if (isLoadingUser || (customerId && isLoadingCustomer)) {
     return <div className="space-y-4"><Skeleton className="h-12 w-64" /><Skeleton className="h-64 w-full" /></div>;
@@ -52,10 +35,6 @@ export default function CustomerPortal() {
       </Card>
     );
   }
-
-  const bmi = customer.heightCm && customer.weightKg 
-    ? (customer.weightKg / Math.pow(customer.heightCm / 100, 2)).toFixed(1)
-    : "N/A";
 
   return (
     <div className="space-y-6">
@@ -151,45 +130,38 @@ export default function CustomerPortal() {
           <Card>
             <CardHeader>
               <CardTitle>Medical Declaration</CardTitle>
-              <CardDescription>Required consent for consultations</CardDescription>
+              <CardDescription>Patient consent &amp; agreement required before consultation</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg">
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Height</div>
-                  <div className="font-medium">{customer.heightCm} cm</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Weight</div>
-                  <div className="font-medium">{customer.weightKg} kg</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider">BMI</div>
-                  <div className="font-medium"><Badge variant="outline">{bmi}</Badge></div>
-                </div>
-              </div>
-
+            <CardContent>
               {customer.declarationSigned ? (
-                <div className="flex flex-col items-center justify-center p-8 border border-green-200 bg-green-50/50 rounded-lg text-green-800 space-y-2">
-                  <CheckCircle2 className="h-8 w-8 text-green-600" />
-                  <h3 className="font-semibold text-lg">Declaration Signed</h3>
-                  <p className="text-sm text-center">You signed the medical declaration on {format(new Date(customer.declarationSignedAt!), "MMMM d, yyyy")}.</p>
+                <div className="flex flex-col sm:flex-row items-start gap-4 p-5 border border-green-200 bg-green-50/40 rounded-lg">
+                  <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-green-800 mb-0.5">Declaration Signed</h3>
+                    <p className="text-sm text-green-700">
+                      Signed on {format(new Date(customer.declarationSignedAt!), "MMMM d, yyyy")}. All 6 consent clauses were accepted.
+                    </p>
+                  </div>
+                  <Link href="/portal/declaration">
+                    <Button variant="outline" size="sm" className="shrink-0">View</Button>
+                  </Link>
                 </div>
               ) : (
-                <div className="space-y-4 border p-6 rounded-lg">
-                  <h3 className="font-semibold">Patient Declaration and Consent</h3>
-                  <div className="text-sm text-muted-foreground space-y-2">
-                    <p>I declare that the medical history and personal information I have provided are true and complete to the best of my knowledge.</p>
-                    <p>I understand that providing false or misleading information may affect my safety during medical procedures.</p>
-                    <p>I consent to the use of my medical records for the purpose of evaluation by consulting surgeons.</p>
+                <div className="flex flex-col sm:flex-row items-start gap-4 p-5 border-2 border-dashed border-amber-300 bg-amber-50/40 rounded-lg">
+                  <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                    <PenTool className="h-5 w-5 text-amber-600" />
                   </div>
-                  <Button 
-                    className="w-full sm:w-auto mt-4" 
-                    onClick={handleSignDeclaration}
-                    disabled={updateCustomer.isPending}
-                  >
-                    {updateCustomer.isPending ? "Signing..." : "I Confirm and Sign"}
-                  </Button>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-amber-800 mb-0.5">Signature Required</h3>
+                    <p className="text-sm text-amber-700">
+                      You must read and sign the patient declaration before your consultation. It covers 6 consent clauses including data use, scope of care, and cancellation policy.
+                    </p>
+                  </div>
+                  <Link href="/portal/declaration">
+                    <Button size="sm" className="shrink-0 bg-amber-600 hover:bg-amber-700">Sign Now</Button>
+                  </Link>
                 </div>
               )}
             </CardContent>

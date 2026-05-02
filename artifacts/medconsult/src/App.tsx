@@ -42,6 +42,7 @@ import EventPublic from "@/pages/event-public";
 import Register from "@/pages/register";
 import CustomerPortal from "@/pages/portal/index";
 import QuestionnaireFormPage from "@/pages/portal/questionnaire";
+import DeclarationPage from "@/pages/portal/declaration";
 import BookingPage from "@/pages/booking";
 
 const queryClient = new QueryClient();
@@ -215,6 +216,7 @@ function PortalRouter() {
     <CustomerLayout>
       <Switch>
         <Route path="/portal/questionnaire/:appointmentId" component={QuestionnaireFormPage} />
+        <Route path="/portal/declaration" component={DeclarationPage} />
         <Route path="/portal" component={CustomerPortal} />
         <Route component={NotFound} />
       </Switch>

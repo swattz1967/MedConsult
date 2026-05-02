@@ -9,6 +9,11 @@ import {
   DeleteAppointmentParams,
   ListAppointmentsQueryParams,
 } from "@workspace/api-zod";
+import {
+  sendBookingConfirmation,
+  sendNewBookingAlert,
+  sendStatusChangeNotification,
+} from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -56,6 +61,25 @@ router.post("/appointments", async (req, res): Promise<void> => {
   const [event] = await db.select().from(eventsTable).where(eq(eventsTable.id, appt.eventId));
 
   res.status(201).json({ ...appt, customer, surgeon, event });
+
+  // Fire-and-forget emails — after response sent
+  if (customer?.email && surgeon?.email && event) {
+    const emailData = {
+      appointmentId: appt.id,
+      startTime: appt.startTime,
+      endTime: appt.endTime,
+      fee: appt.fee,
+      slotMinutes: appt.slotMinutes,
+      customerName: `${customer.firstName} ${customer.lastName}`,
+      customerEmail: customer.email,
+      surgeonName: `${surgeon.firstName} ${surgeon.lastName}`,
+      surgeonEmail: surgeon.email,
+      eventName: event.name,
+      eventVenue: event.venue,
+    };
+    void sendBookingConfirmation(emailData);
+    void sendNewBookingAlert(emailData);
+  }
 });
 
 router.get("/appointments/:id", async (req, res): Promise<void> => {
@@ -89,6 +113,10 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+  // Capture old status before update
+  const [oldAppt] = await db.select().from(appointmentsTable).where(eq(appointmentsTable.id, params.data.id));
+
   const cleanData: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(parsed.data)) {
     if (value !== null && value !== undefined) cleanData[key] = value;
@@ -101,7 +129,28 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
   const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, appt.customerId));
   const [surgeon] = await db.select().from(surgeonsTable).where(eq(surgeonsTable.id, appt.surgeonId));
   const [event] = await db.select().from(eventsTable).where(eq(eventsTable.id, appt.eventId));
+
   res.json({ ...appt, customer, surgeon, event });
+
+  // Fire status-change emails if status actually changed
+  const statusChanged = parsed.data.status && oldAppt && parsed.data.status !== oldAppt.status;
+  if (statusChanged && customer?.email && surgeon?.email && event) {
+    const emailData = {
+      appointmentId: appt.id,
+      startTime: appt.startTime,
+      endTime: appt.endTime,
+      fee: appt.fee,
+      slotMinutes: appt.slotMinutes,
+      customerName: `${customer.firstName} ${customer.lastName}`,
+      customerEmail: customer.email,
+      surgeonName: `${surgeon.firstName} ${surgeon.lastName}`,
+      surgeonEmail: surgeon.email,
+      eventName: event.name,
+      eventVenue: event.venue,
+    };
+    void sendStatusChangeNotification(emailData, parsed.data.status!, "customer");
+    void sendStatusChangeNotification(emailData, parsed.data.status!, "surgeon");
+  }
 });
 
 router.delete("/appointments/:id", async (req, res): Promise<void> => {

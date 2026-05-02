@@ -20,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Upload, File as FileIcon } from "lucide-react";
+import { ArrowLeft, Upload, File as FileIcon, Download } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -139,12 +139,20 @@ export default function ConsultationRoom() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/surgeon/appointments">
-          <Button variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
-        </Link>
-        <h2 className="text-2xl font-bold tracking-tight">Consultation Room</h2>
-        <Badge variant={record?.status === "completed" ? "default" : "outline"}>{record?.status || "Loading..."}</Badge>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-4">
+          <Link href="/surgeon/appointments">
+            <Button variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
+          </Link>
+          <h2 className="text-2xl font-bold tracking-tight">Consultation Room</h2>
+          <Badge variant={record?.status === "completed" ? "default" : "outline"}>{record?.status || "Loading..."}</Badge>
+        </div>
+        {record && (
+          <Button variant="outline" className="gap-2" onClick={() => window.open(`/api/consultation-records/${record.id}/pdf`, "_blank")}>
+            <Download className="h-4 w-4" />
+            Download PDF
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

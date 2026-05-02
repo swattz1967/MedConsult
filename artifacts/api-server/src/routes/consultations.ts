@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, consultationRecordsTable, consultationMediaTable } from "@workspace/db";
+import PDFDocument from "pdfkit";
+import { db, consultationRecordsTable, consultationMediaTable, appointmentsTable, customersTable, surgeonsTable, eventsTable } from "@workspace/db";
 import {
   CreateConsultationRecordBody,
   GetConsultationRecordParams,
@@ -42,6 +43,8 @@ router.post("/consultation-records", async (req, res): Promise<void> => {
 });
 
 router.get("/consultation-records/:id", async (req, res): Promise<void> => {
+  const raw = req.params.id;
+  if (raw === "pdf") { res.status(400).json({ error: "Invalid ID" }); return; }
   const params = GetConsultationRecordParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -95,6 +98,212 @@ router.post("/consultation-records/:id/complete", async (req, res): Promise<void
     return;
   }
   res.json(record);
+});
+
+// --- PDF EXPORT ---
+
+router.get("/consultation-records/:id/pdf", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+
+  const [record] = await db.select().from(consultationRecordsTable).where(eq(consultationRecordsTable.id, id));
+  if (!record) {
+    res.status(404).json({ error: "Consultation record not found" });
+    return;
+  }
+
+  const [appointment] = await db.select().from(appointmentsTable).where(eq(appointmentsTable.id, record.appointmentId));
+  const [customer] = record.customerId ? await db.select().from(customersTable).where(eq(customersTable.id, record.customerId)) : [null];
+  const [surgeon] = record.surgeonId ? await db.select().from(surgeonsTable).where(eq(surgeonsTable.id, record.surgeonId)) : [null];
+  const [event] = appointment ? await db.select().from(eventsTable).where(eq(eventsTable.id, appointment.eventId)) : [null];
+  const mediaItems = await db.select().from(consultationMediaTable).where(eq(consultationMediaTable.consultationRecordId, id));
+
+  const bmi = customer?.heightCm && customer?.weightKg
+    ? (customer.weightKg / Math.pow(customer.heightCm / 100, 2)).toFixed(1)
+    : null;
+
+  const doc = new PDFDocument({ margin: 50, size: "A4" });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="consultation-${id}.pdf"`);
+  doc.pipe(res);
+
+  const BRAND = "#1a6b5c";
+  const LIGHT = "#f0f9f6";
+  const GREY = "#555555";
+  const PAGE_WIDTH = doc.page.width - 100;
+
+  // Header bar
+  doc.rect(0, 0, doc.page.width, 70).fill(BRAND);
+  doc.fillColor("white").fontSize(22).font("Helvetica-Bold")
+    .text("MedConsult", 50, 20);
+  doc.fontSize(11).font("Helvetica")
+    .text("Consultation Record Report", 50, 46);
+  doc.fillColor(BRAND).fontSize(9).font("Helvetica")
+    .text(`Generated: ${new Date().toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })}`, 50, 46, { align: "right", width: PAGE_WIDTH });
+
+  doc.moveDown(3);
+
+  // Status badge area
+  const statusColor = record.status === "completed" ? "#16a34a" : "#d97706";
+  doc.roundedRect(50, 85, 120, 24, 4).fill(statusColor);
+  doc.fillColor("white").fontSize(10).font("Helvetica-Bold")
+    .text(record.status.toUpperCase(), 50, 92, { width: 120, align: "center" });
+
+  doc.moveDown(1.5);
+
+  // Section helper
+  const sectionTitle = (title: string, y: number) => {
+    doc.rect(50, y, PAGE_WIDTH, 22).fill(LIGHT);
+    doc.fillColor(BRAND).fontSize(11).font("Helvetica-Bold")
+      .text(title, 58, y + 6);
+    doc.fillColor("#000000");
+  };
+
+  const row = (label: string, value: string | null | undefined) => {
+    if (!value) return;
+    doc.fontSize(10).font("Helvetica-Bold").fillColor(GREY).text(label, 58, doc.y, { continued: true, width: 160 });
+    doc.font("Helvetica").fillColor("#000000").text(value || "—", { width: PAGE_WIDTH - 160 });
+  };
+
+  const divider = () => {
+    doc.moveDown(0.3);
+    doc.moveTo(50, doc.y).lineTo(50 + PAGE_WIDTH, doc.y).stroke("#e2e8f0");
+    doc.moveDown(0.3);
+  };
+
+  // --- APPOINTMENT INFO ---
+  const aptY = doc.y + 10;
+  sectionTitle("Appointment Details", aptY);
+  doc.moveDown(1.2);
+
+  row("Event:", event?.name);
+  row("Venue:", event?.venue);
+  row("Date:", appointment ? new Date(appointment.startTime).toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" }) : undefined);
+  row("Appointment ID:", `#${record.appointmentId}`);
+  row("Record ID:", `#${record.id}`);
+  row("Completed At:", record.completedAt ? new Date(record.completedAt).toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" }) : undefined);
+
+  doc.moveDown(1);
+  divider();
+
+  // --- PATIENT INFO ---
+  const patY = doc.y + 6;
+  sectionTitle("Patient Information", patY);
+  doc.moveDown(1.2);
+
+  row("Full Name:", customer ? `${customer.firstName} ${customer.lastName}` : undefined);
+  row("Email:", customer?.email);
+  row("Phone:", customer?.dialingCode && customer?.phone ? `${customer.dialingCode} ${customer.phone}` : customer?.phone);
+  row("Nationality:", customer?.nationality);
+  row("Language:", customer?.preferredLanguage);
+  row("Address:", customer?.address ? `${customer.address}${customer.postcode ? ", " + customer.postcode : ""}` : undefined);
+  row("Medical Interests:", customer?.medicalServicesInterest);
+
+  doc.moveDown(0.8);
+
+  // BMI box
+  if (bmi || customer?.heightCm || customer?.weightKg) {
+    doc.rect(58, doc.y, PAGE_WIDTH - 8, 48).fill("#f8fafc").stroke("#e2e8f0");
+    const bmiY = doc.y + 8;
+    doc.fillColor(GREY).fontSize(9).font("Helvetica-Bold").text("PHYSICAL MEASUREMENTS", 66, bmiY);
+    doc.moveDown(0.4);
+    const cols = [
+      { label: "Height", val: customer?.heightCm ? `${customer.heightCm} cm` : "—" },
+      { label: "Weight", val: customer?.weightKg ? `${customer.weightKg} kg` : "—" },
+      { label: "BMI", val: bmi ?? "—" },
+    ];
+    const colW = (PAGE_WIDTH - 16) / 3;
+    cols.forEach((c, i) => {
+      const cx = 66 + i * colW;
+      doc.fillColor(BRAND).fontSize(14).font("Helvetica-Bold").text(c.val, cx, doc.y - 2, { width: colW - 4 });
+      doc.fillColor(GREY).fontSize(9).font("Helvetica").text(c.label, cx, doc.y - 4, { width: colW - 4 });
+    });
+    doc.moveDown(1.5);
+  }
+
+  doc.moveDown(0.5);
+  divider();
+
+  // --- SURGEON INFO ---
+  const surgY = doc.y + 6;
+  sectionTitle("Consulting Surgeon", surgY);
+  doc.moveDown(1.2);
+
+  row("Surgeon:", surgeon ? `${surgeon.firstName} ${surgeon.lastName}` : undefined);
+  row("Specialization:", surgeon?.specialization);
+  row("Email:", surgeon?.email);
+
+  doc.moveDown(1);
+  divider();
+
+  // --- CONSULTATION NOTES ---
+  const notesY = doc.y + 6;
+  sectionTitle("Consultation Notes", notesY);
+  doc.moveDown(1.2);
+
+  if (record.notes) {
+    doc.fontSize(10).font("Helvetica").fillColor("#000000")
+      .text(record.notes, 58, doc.y, { width: PAGE_WIDTH - 16, lineGap: 3 });
+  } else {
+    doc.fontSize(10).font("Helvetica").fillColor(GREY).text("No notes recorded.", 58, doc.y);
+  }
+
+  doc.moveDown(1);
+  divider();
+
+  // --- SURGEON OBSERVATIONS ---
+  if (record.surgeonAnswers) {
+    const obsY = doc.y + 6;
+    sectionTitle("Surgeon Observations / Answers", obsY);
+    doc.moveDown(1.2);
+
+    let answers: Record<string, unknown> = {};
+    try { answers = JSON.parse(record.surgeonAnswers); } catch { /* raw text */ }
+
+    if (Object.keys(answers).length > 0) {
+      Object.entries(answers).forEach(([k, v]) => {
+        doc.fontSize(10).font("Helvetica-Bold").fillColor(GREY).text(`Q: ${k}`, 58, doc.y, { width: PAGE_WIDTH - 16 });
+        doc.fontSize(10).font("Helvetica").fillColor("#000000").text(`A: ${String(v)}`, 58, doc.y, { width: PAGE_WIDTH - 16, lineGap: 2 });
+        doc.moveDown(0.4);
+      });
+    } else {
+      doc.fontSize(10).font("Helvetica").fillColor("#000000")
+        .text(record.surgeonAnswers, 58, doc.y, { width: PAGE_WIDTH - 16, lineGap: 3 });
+    }
+
+    doc.moveDown(1);
+    divider();
+  }
+
+  // --- MEDIA / ATTACHMENTS ---
+  const mediaY = doc.y + 6;
+  sectionTitle("Attachments & Media", mediaY);
+  doc.moveDown(1.2);
+
+  if (mediaItems.length === 0) {
+    doc.fontSize(10).font("Helvetica").fillColor(GREY).text("No files attached.", 58, doc.y);
+  } else {
+    mediaItems.forEach((m, idx) => {
+      const mediaTypeLabel = m.mediaType === "photo" ? "Photo" : m.mediaType === "voice_recording" ? "Voice Recording" : "Document";
+      doc.fontSize(10).font("Helvetica-Bold").fillColor("#000000")
+        .text(`${idx + 1}. ${m.fileName}`, 58, doc.y, { continued: true, width: PAGE_WIDTH - 120 });
+      doc.font("Helvetica").fillColor(GREY).text(`  [${mediaTypeLabel}]`);
+    });
+  }
+
+  doc.moveDown(2);
+
+  // Footer
+  const pageHeight = doc.page.height;
+  doc.rect(0, pageHeight - 40, doc.page.width, 40).fill(BRAND);
+  doc.fillColor("white").fontSize(9).font("Helvetica")
+    .text(`MedConsult — Confidential Medical Record — Record #${record.id}`, 50, pageHeight - 26, { align: "center", width: PAGE_WIDTH });
+
+  doc.end();
 });
 
 // --- MEDIA ---

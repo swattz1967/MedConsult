@@ -233,7 +233,10 @@ function ClerkProviderWithRoutes() {
           <Route path="/events/:id" component={EventPublic} />
           <Route path="/register" component={Register} />
           <Route path="/admin/*" component={AdminRouter} />
+          <Route path="/admin" component={AdminRouter} />
           <Route path="/surgeon/*" component={SurgeonRouter} />
+          <Route path="/surgeon" component={SurgeonRouter} />
+          <Route path="/portal" component={PortalRouter} />
           <Route path="/portal/*" component={PortalRouter} />
           <Route component={NotFound} />
         </Switch>

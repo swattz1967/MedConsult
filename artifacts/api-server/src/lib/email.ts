@@ -301,8 +301,8 @@ const STATUS_COPY: Record<string, { subject: string; headline: string; body: str
   },
   completed: {
     subject: "Consultation completed",
-    headline: "Consultation completed",
-    body: "Your consultation has been marked as completed. Thank you for using MedConsult.",
+    headline: "Thank you for your consultation",
+    body: "Your consultation has been completed. We hope it was helpful — your consultation notes and any follow-up details will be available in your patient portal.",
     badgeClass: "badge-blue",
   },
   no_show: {
@@ -349,15 +349,19 @@ export async function sendStatusChangeNotification(
       ? `<p>If you wish to rebook, please visit your patient portal or contact us directly.</p>`
       : "";
 
-  // Recipient-aware headline/body for no_show
+  // Recipient-aware headline/body for no_show and completed
   const headline =
     newStatus === "no_show" && recipientType === "surgeon"
       ? "Patient did not attend"
-      : copy.headline;
+      : newStatus === "completed" && recipientType === "surgeon"
+        ? "Consultation completed"
+        : copy.headline;
   const body =
     newStatus === "no_show" && recipientType === "surgeon"
       ? `this is to inform you that ${data.customerName} did not attend their scheduled consultation. The appointment has been marked as a no-show.`
-      : copy.body;
+      : newStatus === "completed" && recipientType === "surgeon"
+        ? `this is to confirm that the consultation with ${data.customerName} has been successfully completed and marked in the system. Consultation notes can be added via the surgeon portal.`
+        : copy.body;
 
   const followUpNote =
     newStatus === "no_show" && recipientType === "customer"

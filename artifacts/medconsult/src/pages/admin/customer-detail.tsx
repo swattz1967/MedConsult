@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle2, Clock, User, Ruler, Scale, Activity, ShieldCheck, Calendar, AlertTriangle, Mail, Plus, CalendarClock, XCircle, UserX } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, User, Ruler, Scale, Activity, ShieldCheck, Calendar, AlertTriangle, Mail, Plus, CalendarClock, XCircle, UserX, CheckCheck } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -27,6 +27,7 @@ import { BookAppointmentDialog } from "@/components/admin/book-appointment-dialo
 import { RescheduleAppointmentDialog } from "@/components/admin/reschedule-appointment-dialog";
 import { CancelAppointmentDialog } from "@/components/admin/cancel-appointment-dialog";
 import { NoShowDialog } from "@/components/admin/no-show-dialog";
+import { CompleteAppointmentDialog } from "@/components/admin/complete-appointment-dialog";
 
 const CONSENT_CLAUSES = [
   "Accuracy of Information",
@@ -53,6 +54,7 @@ export default function CustomerDetail() {
   const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
   const [noShowTarget, setNoShowTarget] = useState<Appointment | null>(null);
+  const [completeTarget, setCompleteTarget] = useState<Appointment | null>(null);
   const now = new Date();
 
   const { data: customer, isLoading } = useGetCustomer(customerId);
@@ -490,6 +492,17 @@ export default function CustomerDetail() {
                           No Show
                         </Button>
                       )}
+                      {canMarkNoShow && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-blue-600"
+                          onClick={() => setCompleteTarget(appt)}
+                        >
+                          <CheckCheck className="h-3.5 w-3.5" />
+                          Complete
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
@@ -531,6 +544,17 @@ export default function CustomerDetail() {
           appointment={noShowTarget}
           customerId={customerId}
           customerEmail={customer.email}
+          customerName={`${customer.firstName} ${customer.lastName}`}
+        />
+      )}
+
+      {/* Complete dialog */}
+      {completeTarget && (
+        <CompleteAppointmentDialog
+          open={!!completeTarget}
+          onOpenChange={(open) => { if (!open) setCompleteTarget(null); }}
+          appointment={completeTarget}
+          customerId={customerId}
           customerName={`${customer.firstName} ${customer.lastName}`}
         />
       )}

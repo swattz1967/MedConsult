@@ -1,5 +1,5 @@
 import { useParams } from "wouter";
-import { useGetCustomer, useUpdateCustomer, getGetCustomerQueryKey, useListAppointments } from "@workspace/api-client-react";
+import { useGetCustomer, useUpdateCustomer, getGetCustomerQueryKey, useListAppointments, useSendDeclarationReminder } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,7 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle2, Clock, User, Ruler, Scale, Activity, ShieldCheck, Calendar, AlertTriangle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, User, Ruler, Scale, Activity, ShieldCheck, Calendar, AlertTriangle, Mail } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -48,6 +48,23 @@ export default function CustomerDetail() {
   const { data: customer, isLoading } = useGetCustomer(customerId);
   const { data: appointments } = useListAppointments({ customerId });
   const updateCustomer = useUpdateCustomer();
+  const sendReminder = useSendDeclarationReminder();
+
+  const handleSendReminder = () => {
+    sendReminder.mutate(
+      { id: customerId },
+      {
+        onSuccess: () => {
+          toast({ title: "Reminder sent", description: `An email has been sent to ${customer?.email}` });
+        },
+        onError: (err: unknown) => {
+          const msg =
+            err instanceof Error ? err.message : "Failed to send reminder email";
+          toast({ title: "Could not send reminder", description: msg, variant: "destructive" });
+        },
+      },
+    );
+  };
 
   const handleMarkSigned = () => {
     updateCustomer.mutate(
@@ -218,7 +235,25 @@ export default function CustomerDetail() {
               <CardDescription className="mt-1">Consent status and clause details</CardDescription>
             </div>
 
-            <div className="flex gap-2 shrink-0">
+            <div className="flex gap-2 shrink-0 flex-wrap">
+              {!customer.declarationSigned && customer.email && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSendReminder}
+                  disabled={sendReminder.isPending}
+                  className="gap-1.5"
+                >
+                  {sendReminder.isPending ? (
+                    "Sending…"
+                  ) : (
+                    <>
+                      <Mail className="h-3.5 w-3.5" />
+                      Send Reminder
+                    </>
+                  )}
+                </Button>
+              )}
               {customer.declarationSigned ? (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>

@@ -60,6 +60,7 @@ import type {
   QuestionnaireWithQuestions,
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
+  SendDeclarationReminder200,
   Surgeon,
   SyncUserBody,
   UpdateAgencyBody,
@@ -3444,6 +3445,93 @@ export const useDeleteCustomer = <
   TContext
 > => {
   return useMutation(getDeleteCustomerMutationOptions(options));
+};
+
+/**
+ * @summary Send declaration reminder email to a customer
+ */
+export const getSendDeclarationReminderUrl = (id: number) => {
+  return `/api/customers/${id}/send-declaration-reminder`;
+};
+
+export const sendDeclarationReminder = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SendDeclarationReminder200> => {
+  return customFetch<SendDeclarationReminder200>(
+    getSendDeclarationReminderUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getSendDeclarationReminderMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendDeclarationReminder>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendDeclarationReminder>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["sendDeclarationReminder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendDeclarationReminder>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return sendDeclarationReminder(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendDeclarationReminderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendDeclarationReminder>>
+>;
+
+export type SendDeclarationReminderMutationError = ErrorType<void>;
+
+/**
+ * @summary Send declaration reminder email to a customer
+ */
+export const useSendDeclarationReminder = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendDeclarationReminder>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendDeclarationReminder>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getSendDeclarationReminderMutationOptions(options));
 };
 
 /**

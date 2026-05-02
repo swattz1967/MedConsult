@@ -804,6 +804,33 @@ paths:
         "204":
           description: Deleted
 
+  /customers/{id}/send-declaration-reminder:
+    post:
+      operationId: sendDeclarationReminder
+      tags: [customers]
+      summary: Send declaration reminder email to a customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reminder sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+        "400":
+          description: Customer has no email or declaration already signed
+        "404":
+          description: Customer not found
+
   # --- QUESTIONNAIRES ---
   /questionnaires:
     get:

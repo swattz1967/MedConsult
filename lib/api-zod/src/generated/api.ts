@@ -923,6 +923,17 @@ export const DeleteCustomerParams = zod.object({
 });
 
 /**
+ * @summary Send declaration reminder email to a customer
+ */
+export const SendDeclarationReminderParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SendDeclarationReminderResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
  * @summary List questionnaires
  */
 export const ListQuestionnairesQueryParams = zod.object({

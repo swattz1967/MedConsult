@@ -868,6 +868,10 @@ export type ListCustomersParams = {
   agencyId?: number | null;
 };
 
+export type SendDeclarationReminder200 = {
+  ok: boolean;
+};
+
 export type ListQuestionnairesParams = {
   /**
    * @nullable

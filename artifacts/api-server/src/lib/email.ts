@@ -145,7 +145,49 @@ export async function sendNewBookingAlert(data: AppointmentEmailData): Promise<v
   }
 }
 
-// ─── 3. Status update notification → customer ────────────────────────────────
+// ─── 3. Declaration reminder → customer ──────────────────────────────────────
+
+interface DeclarationReminderData {
+  customerId: number;
+  customerName: string;
+  customerEmail: string;
+}
+
+export async function sendDeclarationReminder(data: DeclarationReminderData): Promise<void> {
+  const client = getClient();
+  if (!client) return;
+
+  const portalUrl = `${process.env.APP_URL ?? ""}/portal/declaration`;
+
+  const html = emailWrapper(`
+    <h2>Action required: Please sign your patient declaration</h2>
+    <p>Hi ${data.customerName},</p>
+    <p>Before your upcoming consultation, we need you to read and sign your patient declaration form. This is a quick process that covers your consent for the consultation service.</p>
+    <div class="card">
+      <div class="card-row"><span class="label">What you need to do</span><span class="value">Sign patient declaration</span></div>
+      <div class="card-row"><span class="label">Time required</span><span class="value">~2 minutes</span></div>
+      <div class="card-row"><span class="label">Status</span><span class="value"><span class="badge badge-red">Unsigned</span></span></div>
+    </div>
+    <p>Click the button below to sign your declaration. You will be asked to review 6 short consent clauses and add your digital signature.</p>
+    <a href="${portalUrl}" class="btn">Sign My Declaration</a>
+    <p style="margin-top:20px;font-size:12px;color:#9ca3af;">If you have already signed, you can ignore this email.</p>
+  `);
+
+  try {
+    await client.emails.send({
+      from: FROM_ADDRESS,
+      to: data.customerEmail,
+      subject: "Action required: Sign your patient declaration before your consultation",
+      html,
+    });
+    logger.info({ customerId: data.customerId, to: data.customerEmail }, "Declaration reminder sent");
+  } catch (err) {
+    logger.error({ err, customerId: data.customerId }, "Failed to send declaration reminder");
+    throw err;
+  }
+}
+
+// ─── 4. Status update notification → customer ────────────────────────────────
 
 const STATUS_COPY: Record<string, { subject: string; headline: string; body: string; badgeClass: string }> = {
   cancelled: {

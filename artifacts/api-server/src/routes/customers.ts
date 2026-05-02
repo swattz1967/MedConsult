@@ -9,6 +9,7 @@ import {
   DeleteCustomerParams,
   ListCustomersQueryParams,
 } from "@workspace/api-zod";
+import { sendDeclarationReminder } from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -75,6 +76,37 @@ router.delete("/customers/:id", async (req, res): Promise<void> => {
   }
   await db.delete(customersTable).where(eq(customersTable.id, params.data.id));
   res.sendStatus(204);
+});
+
+router.post("/customers/:id/send-declaration-reminder", async (req, res): Promise<void> => {
+  const params = GetCustomerParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, params.data.id));
+  if (!customer) {
+    res.status(404).json({ error: "Customer not found" });
+    return;
+  }
+  if (!customer.email) {
+    res.status(400).json({ error: "Customer has no email address on file" });
+    return;
+  }
+  if (customer.declarationSigned) {
+    res.status(400).json({ error: "Customer has already signed their declaration" });
+    return;
+  }
+  try {
+    await sendDeclarationReminder({
+      customerId: customer.id,
+      customerName: `${customer.firstName} ${customer.lastName}`,
+      customerEmail: customer.email,
+    });
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "Failed to send reminder email" });
+  }
 });
 
 export default router;

@@ -349,9 +349,24 @@ export async function sendStatusChangeNotification(
       ? `<p>If you wish to rebook, please visit your patient portal or contact us directly.</p>`
       : "";
 
+  // Recipient-aware headline/body for no_show
+  const headline =
+    newStatus === "no_show" && recipientType === "surgeon"
+      ? "Patient did not attend"
+      : copy.headline;
+  const body =
+    newStatus === "no_show" && recipientType === "surgeon"
+      ? `this is to inform you that ${data.customerName} did not attend their scheduled consultation. The appointment has been marked as a no-show.`
+      : copy.body;
+
+  const followUpNote =
+    newStatus === "no_show" && recipientType === "customer"
+      ? `<p>If you'd like to rebook, please visit your patient portal or contact us and we'll get you a new appointment.</p>`
+      : "";
+
   const html = emailWrapper(`
-    <h2>${copy.headline}</h2>
-    <p>Hi ${toName}, ${copy.body}</p>
+    <h2>${headline}</h2>
+    <p>Hi ${toName}, ${body}</p>
     <div class="card">
       <div class="card-row"><span class="label">${otherPartyLabel}</span><span class="value">${otherPartyName}</span></div>
       <div class="card-row"><span class="label">Event</span><span class="value">${data.eventName}</span></div>
@@ -362,6 +377,7 @@ export async function sendStatusChangeNotification(
       <div class="card-row"><span class="label">Status</span><span class="value"><span class="badge ${copy.badgeClass}">${newStatus.replace("_", " ")}</span></span></div>
     </div>
     ${rebookNote}
+    ${followUpNote}
     <a href="${portalHref}" class="btn">${portalLabel}</a>
   `);
 

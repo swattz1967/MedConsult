@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle2, Clock, User, Ruler, Scale, Activity, ShieldCheck, Calendar, AlertTriangle, Mail, Plus, CalendarClock, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, User, Ruler, Scale, Activity, ShieldCheck, Calendar, AlertTriangle, Mail, Plus, CalendarClock, XCircle, UserX } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { BookAppointmentDialog } from "@/components/admin/book-appointment-dialog";
 import { RescheduleAppointmentDialog } from "@/components/admin/reschedule-appointment-dialog";
 import { CancelAppointmentDialog } from "@/components/admin/cancel-appointment-dialog";
+import { NoShowDialog } from "@/components/admin/no-show-dialog";
 
 const CONSENT_CLAUSES = [
   "Accuracy of Information",
@@ -51,6 +52,8 @@ export default function CustomerDetail() {
   const [bookDialogOpen, setBookDialogOpen] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
+  const [noShowTarget, setNoShowTarget] = useState<Appointment | null>(null);
+  const now = new Date();
 
   const { data: customer, isLoading } = useGetCustomer(customerId);
   const { data: appointments } = useListAppointments({ customerId });
@@ -406,6 +409,8 @@ export default function CustomerDetail() {
             <div className="rounded-lg border divide-y">
               {appointments.map((appt) => {
                 const canReschedule = appt.status === "scheduled";
+                const isPast = new Date(appt.startTime) < now;
+                const canMarkNoShow = canReschedule && isPast;
                 return (
                   <div
                     key={appt.id}
@@ -474,6 +479,17 @@ export default function CustomerDetail() {
                           Cancel
                         </Button>
                       )}
+                      {canMarkNoShow && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-orange-600"
+                          onClick={() => setNoShowTarget(appt)}
+                        >
+                          <UserX className="h-3.5 w-3.5" />
+                          No Show
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
@@ -501,6 +517,18 @@ export default function CustomerDetail() {
           open={!!cancelTarget}
           onOpenChange={(open) => { if (!open) setCancelTarget(null); }}
           appointment={cancelTarget}
+          customerId={customerId}
+          customerEmail={customer.email}
+          customerName={`${customer.firstName} ${customer.lastName}`}
+        />
+      )}
+
+      {/* No-show dialog */}
+      {noShowTarget && (
+        <NoShowDialog
+          open={!!noShowTarget}
+          onOpenChange={(open) => { if (!open) setNoShowTarget(null); }}
+          appointment={noShowTarget}
           customerId={customerId}
           customerEmail={customer.email}
           customerName={`${customer.firstName} ${customer.lastName}`}

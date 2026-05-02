@@ -591,6 +591,11 @@ export default function CustomerDetail() {
                             · {appt.slotMinutes} min
                           </span>
                         )}
+                        {appt.fee != null && (
+                          <span className="ml-1.5 text-xs font-medium text-foreground/70 bg-muted px-1.5 py-0.5 rounded">
+                            £{Number(appt.fee).toFixed(2)}
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
                         {appt.event?.name ?? "—"}

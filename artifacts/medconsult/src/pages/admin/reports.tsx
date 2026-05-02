@@ -9,7 +9,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area,
 } from "recharts";
-import { Download, TrendingUp, DollarSign, CalendarCheck, XCircle } from "lucide-react";
+import { Download, TrendingUp, PoundSterling, CalendarCheck, XCircle, TrendingDown, ArrowUpRight } from "lucide-react";
 import { format, startOfWeek, startOfMonth, parseISO, isAfter } from "date-fns";
 
 type Range = "all" | "month" | "week";
@@ -30,12 +30,27 @@ const STATUS_LABELS: Record<string, string> = {
 
 const CHART_COLORS = ["#145c4b", "#22c55e", "#0ea5e9", "#a855f7", "#f59e0b", "#ec4899"];
 
+function fmtGBP(n: number): string {
+  return `£${n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function fmt(n: number, decimals = 0): string {
-  return n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  return n.toLocaleString("en-GB", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+interface SurgeonRevRow {
+  id: number;
+  name: string;
+  earned: number;
+  pending: number;
+  lost: number;
+  total: number;
+  appointments: number;
 }
 
 export default function AdminReports() {
   const [range, setRange] = useState<Range>("all");
+  const [revSort, setRevSort] = useState<keyof SurgeonRevRow>("earned");
 
   const { data: allAppointments = [], isLoading } = useListAppointments({});
   const { data: surgeons = [] } = useListSurgeons();
@@ -53,14 +68,57 @@ export default function AdminReports() {
     const total = appointments.length;
     const cancelled = appointments.filter((a) => a.status === "cancelled").length;
     const completed = appointments.filter((a) => a.status === "completed").length;
-    const revenue = appointments
-      .filter((a) => a.status !== "cancelled")
+    const earned = appointments
+      .filter((a) => a.status === "completed")
+      .reduce((sum, a) => sum + (a.fee ?? 0), 0);
+    const pending = appointments
+      .filter((a) => a.status === "scheduled")
+      .reduce((sum, a) => sum + (a.fee ?? 0), 0);
+    const lost = appointments
+      .filter((a) => a.status === "cancelled" || a.status === "no_show")
       .reduce((sum, a) => sum + (a.fee ?? 0), 0);
     const cancellationRate = total > 0 ? (cancelled / total) * 100 : 0;
     const uniqueSurgeons = new Set(appointments.map((a) => a.surgeonId)).size;
     const avgPerSurgeon = uniqueSurgeons > 0 ? total / uniqueSurgeons : 0;
-    return { total, cancelled, completed, revenue, cancellationRate, uniqueSurgeons, avgPerSurgeon };
+    return { total, cancelled, completed, earned, pending, lost, cancellationRate, uniqueSurgeons, avgPerSurgeon };
   }, [appointments]);
+
+  // ── Surgeon revenue breakdown ───────────────────────────────────────────────
+  const surgeonRevenueData = useMemo((): SurgeonRevRow[] => {
+    const map: Record<number, SurgeonRevRow> = {};
+    appointments.forEach((a) => {
+      if (!map[a.surgeonId]) {
+        const s = surgeons.find((s) => s.id === a.surgeonId);
+        map[a.surgeonId] = {
+          id: a.surgeonId,
+          name: s ? `${s.firstName} ${s.lastName}` : `Surgeon #${a.surgeonId}`,
+          earned: 0, pending: 0, lost: 0, total: 0, appointments: 0,
+        };
+      }
+      const row = map[a.surgeonId];
+      row.appointments++;
+      const fee = a.fee ?? 0;
+      if (a.status === "completed") { row.earned += fee; row.total += fee; }
+      else if (a.status === "scheduled") { row.pending += fee; row.total += fee; }
+      else { row.lost += fee; }
+    });
+    return Object.values(map).sort((a, b) => (b[revSort] as number) - (a[revSort] as number));
+  }, [appointments, surgeons, revSort]);
+
+  // Chart data sorted by earned desc (independent of table sort)
+  const surgeonChartData = useMemo(() =>
+    [...surgeonRevenueData].sort((a, b) => b.earned - a.earned),
+    [surgeonRevenueData]
+  );
+
+  // Revenue totals row
+  const revTotals = useMemo(() => ({
+    earned: surgeonRevenueData.reduce((s, r) => s + r.earned, 0),
+    pending: surgeonRevenueData.reduce((s, r) => s + r.pending, 0),
+    lost: surgeonRevenueData.reduce((s, r) => s + r.lost, 0),
+    total: surgeonRevenueData.reduce((s, r) => s + r.total, 0),
+    appointments: surgeonRevenueData.reduce((s, r) => s + r.appointments, 0),
+  }), [surgeonRevenueData]);
 
   // ── Appointments by status (donut) ─────────────────────────────────────────
   const statusData = useMemo(() => {
@@ -73,25 +131,7 @@ export default function AdminReports() {
     }));
   }, [appointments]);
 
-  // ── Appointments by surgeon (bar) ──────────────────────────────────────────
-  const surgeonBookingsData = useMemo(() => {
-    const map: Record<number, { bookings: number; revenue: number }> = {};
-    appointments.forEach((a) => {
-      if (!map[a.surgeonId]) map[a.surgeonId] = { bookings: 0, revenue: 0 };
-      map[a.surgeonId].bookings++;
-      if (a.status !== "cancelled") map[a.surgeonId].revenue += a.fee ?? 0;
-    });
-    return surgeons
-      .map((s) => ({
-        name: `${s.firstName} ${s.lastName}`.replace(/^Dr\. /, "Dr. "),
-        bookings: map[s.id]?.bookings ?? 0,
-        revenue: map[s.id]?.revenue ?? 0,
-      }))
-      .filter((d) => d.bookings > 0)
-      .sort((a, b) => b.bookings - a.bookings);
-  }, [appointments, surgeons]);
-
-  // ── Appointments over time (area chart, by date) ───────────────────────────
+  // ── Appointments over time (area chart) ───────────────────────────────────
   const timelineData = useMemo(() => {
     const map: Record<string, { date: string; booked: number; completed: number; cancelled: number }> = {};
     appointments.forEach((a) => {
@@ -120,9 +160,9 @@ export default function AdminReports() {
       .sort((a, b) => b.bookings - a.bookings);
   }, [appointments, events]);
 
-  // ── CSV export ────────────────────────────────────────────────────────────
+  // ── CSV exports ────────────────────────────────────────────────────────────
   const exportCSV = () => {
-    const headers = ["ID", "Patient", "Surgeon", "Event", "Date", "Time", "Status", "Fee"];
+    const headers = ["ID", "Patient", "Surgeon", "Event", "Date", "Time", "Status", "Fee (£)"];
     const rows = appointments.map((a) => [
       a.id,
       a.customer ? `${a.customer.firstName} ${a.customer.lastName}` : a.customerId,
@@ -133,28 +173,35 @@ export default function AdminReports() {
       a.status,
       a.fee ?? "",
     ]);
-    const csv = [headers, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `medconsult-appointments-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    download(
+      [headers, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n"),
+      `medconsult-appointments-${format(new Date(), "yyyy-MM-dd")}.csv`
+    );
   };
 
   const exportRevCSV = () => {
-    const headers = ["Surgeon", "Bookings", "Revenue ($)"];
-    const rows = surgeonBookingsData.map((r) => [r.name, r.bookings, r.revenue]);
-    const csv = [headers, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+    const headers = ["Surgeon", "Appointments", "Earned (£)", "Pending (£)", "Lost (£)", "Pipeline (£)"];
+    const rows = surgeonRevenueData.map((r) => [
+      r.name, r.appointments,
+      r.earned.toFixed(2), r.pending.toFixed(2), r.lost.toFixed(2), r.total.toFixed(2),
+    ]);
+    const totals = [
+      "TOTAL", revTotals.appointments,
+      revTotals.earned.toFixed(2), revTotals.pending.toFixed(2), revTotals.lost.toFixed(2), revTotals.total.toFixed(2),
+    ];
+    download(
+      [headers, ...rows, totals].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n"),
+      `medconsult-revenue-by-surgeon-${format(new Date(), "yyyy-MM-dd")}.csv`
+    );
+  };
+
+  function download(csv: string, filename: string) {
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `medconsult-revenue-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
+    a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
-  };
+  }
 
   if (isLoading) {
     return (
@@ -167,9 +214,18 @@ export default function AdminReports() {
           <Skeleton className="h-72" />
           <Skeleton className="h-72" />
         </div>
+        <Skeleton className="h-96" />
       </div>
     );
   }
+
+  const sortCols: { key: keyof SurgeonRevRow; label: string }[] = [
+    { key: "earned", label: "Earned" },
+    { key: "pending", label: "Pending" },
+    { key: "lost", label: "Lost" },
+    { key: "total", label: "Pipeline" },
+    { key: "appointments", label: "Appointments" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -177,14 +233,14 @@ export default function AdminReports() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Reports</h2>
-          <p className="text-sm text-muted-foreground">Appointment statistics, revenue &amp; surgeon utilisation</p>
+          <p className="text-sm text-muted-foreground">Appointment statistics, revenue &amp; surgeon performance</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={exportCSV} className="gap-2">
-            <Download className="h-4 w-4" /> Export Appointments
+            <Download className="h-4 w-4" /> Appointments CSV
           </Button>
           <Button variant="outline" size="sm" onClick={exportRevCSV} className="gap-2">
-            <Download className="h-4 w-4" /> Export Revenue
+            <Download className="h-4 w-4" /> Revenue CSV
           </Button>
         </div>
       </div>
@@ -199,7 +255,7 @@ export default function AdminReports() {
       </Tabs>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total Appointments</CardTitle>
@@ -213,34 +269,34 @@ export default function AdminReports() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Earned Revenue</CardTitle>
+            <PoundSterling className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">${fmt(kpis.revenue)}</div>
-            <div className="text-xs text-muted-foreground mt-1">Excl. cancelled appointments</div>
+            <div className="text-3xl font-bold text-emerald-700">{fmtGBP(kpis.earned)}</div>
+            <div className="text-xs text-muted-foreground mt-1">From completed appointments</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Cancellation Rate</CardTitle>
-            <XCircle className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Pipeline Value</CardTitle>
+            <ArrowUpRight className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{fmt(kpis.cancellationRate, 1)}%</div>
-            <div className="text-xs text-muted-foreground mt-1">{fmt(kpis.cancelled)} cancelled</div>
+            <div className="text-3xl font-bold text-blue-700">{fmtGBP(kpis.pending)}</div>
+            <div className="text-xs text-muted-foreground mt-1">Scheduled appointments</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Avg per Surgeon</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Lost Revenue</CardTitle>
+            <TrendingDown className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{fmt(kpis.avgPerSurgeon, 1)}</div>
-            <div className="text-xs text-muted-foreground mt-1">Across {kpis.uniqueSurgeons} active surgeons</div>
+            <div className="text-3xl font-bold text-red-700">{fmtGBP(kpis.lost)}</div>
+            <div className="text-xs text-muted-foreground mt-1">Cancelled &amp; no-shows</div>
           </CardContent>
         </Card>
       </div>
@@ -260,23 +316,16 @@ export default function AdminReports() {
                 <PieChart>
                   <Pie
                     data={statusData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={85}
-                    paddingAngle={3}
-                    dataKey="value"
+                    cx="50%" cy="50%"
+                    innerRadius={55} outerRadius={85}
+                    paddingAngle={3} dataKey="value"
                   >
                     {statusData.map((entry) => (
                       <Cell key={entry.status} fill={STATUS_COLORS[entry.status] ?? "#94a3b8"} />
                     ))}
                   </Pie>
                   <Tooltip formatter={(val, name) => [`${val} appts`, name]} />
-                  <Legend
-                    iconType="circle"
-                    iconSize={8}
-                    formatter={(val) => <span className="text-xs">{val}</span>}
-                  />
+                  <Legend iconType="circle" iconSize={8} formatter={(val) => <span className="text-xs">{val}</span>} />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -313,7 +362,128 @@ export default function AdminReports() {
         </Card>
       </div>
 
-      {/* Row 3: Surgeon bookings + Revenue */}
+      {/* ── Revenue by Surgeon — main section ─────────────────────────────── */}
+      <Card>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <PoundSterling className="h-4 w-4 text-emerald-600" />
+              Revenue by Surgeon
+            </CardTitle>
+            <CardDescription>Earned · Pending · Lost breakdown per surgeon</CardDescription>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <span className="text-xs text-muted-foreground">Sort by:</span>
+            {sortCols.map((col) => (
+              <button
+                key={col.key}
+                onClick={() => setRevSort(col.key)}
+                className={`text-xs px-2 py-1 rounded border transition-colors ${
+                  revSort === col.key
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background border-border text-muted-foreground hover:border-primary/50"
+                }`}
+              >
+                {col.label}
+              </button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {surgeonChartData.length === 0 ? (
+            <div className="h-52 flex items-center justify-center text-muted-foreground text-sm">No data for this period</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={Math.max(200, surgeonChartData.length * 52)}>
+              <BarChart data={surgeonChartData} layout="vertical" margin={{ top: 4, right: 24, left: 4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
+                <XAxis
+                  type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false}
+                  tickFormatter={(v) => `£${v}`}
+                />
+                <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={110} tickLine={false} />
+                <Tooltip
+                  formatter={(v, name) => [fmtGBP(Number(v)), name]}
+                  labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+                />
+                <Legend iconType="square" iconSize={10} formatter={(val) => <span className="text-xs">{val}</span>} />
+                <Bar dataKey="earned"  name="Earned"  fill="#22c55e" radius={[0, 0, 0, 0]} maxBarSize={18} stackId="a" />
+                <Bar dataKey="pending" name="Pending" fill="#0ea5e9" radius={[0, 0, 0, 0]} maxBarSize={18} stackId="a" />
+                <Bar dataKey="lost"    name="Lost"    fill="#ef4444" radius={[0, 4, 4, 0]} maxBarSize={18} stackId="a" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+
+          {/* Summary table */}
+          {surgeonRevenueData.length > 0 && (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Surgeon</th>
+                    <th className="px-4 py-2.5 text-right font-medium text-muted-foreground">Appts</th>
+                    <th className="px-4 py-2.5 text-right font-medium text-emerald-700">Earned</th>
+                    <th className="px-4 py-2.5 text-right font-medium text-blue-700">Pending</th>
+                    <th className="px-4 py-2.5 text-right font-medium text-red-700">Lost</th>
+                    <th className="px-4 py-2.5 text-right font-medium text-foreground">Pipeline</th>
+                    <th className="px-4 py-2.5 text-right font-medium text-muted-foreground hidden sm:table-cell">Win Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {surgeonRevenueData.map((row) => {
+                    const winRate = row.appointments > 0
+                      ? (row.earned / (row.earned + row.lost + row.pending || 1)) * 100
+                      : 0;
+                    return (
+                      <tr key={row.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 font-medium">{row.name}</td>
+                        <td className="px-4 py-3 text-right text-muted-foreground">{row.appointments}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-emerald-700">
+                          {row.earned > 0 ? fmtGBP(row.earned) : <span className="text-muted-foreground font-normal">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right text-blue-700">
+                          {row.pending > 0 ? fmtGBP(row.pending) : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right text-red-700">
+                          {row.lost > 0 ? fmtGBP(row.lost) : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold">
+                          {fmtGBP(row.total)}
+                        </td>
+                        <td className="px-4 py-3 text-right hidden sm:table-cell">
+                          <div className="flex items-center justify-end gap-2">
+                            <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-emerald-500 rounded-full"
+                                style={{ width: `${Math.min(winRate, 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-muted-foreground w-9 text-right">
+                              {fmt(winRate, 0)}%
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 bg-muted/30">
+                    <td className="px-4 py-3 font-semibold">Total</td>
+                    <td className="px-4 py-3 text-right font-semibold">{revTotals.appointments}</td>
+                    <td className="px-4 py-3 text-right font-bold text-emerald-700">{fmtGBP(revTotals.earned)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-blue-700">{fmtGBP(revTotals.pending)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-red-700">{fmtGBP(revTotals.lost)}</td>
+                    <td className="px-4 py-3 text-right font-bold">{fmtGBP(revTotals.total)}</td>
+                    <td className="hidden sm:table-cell" />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Row: Bookings by surgeon + by event */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -321,17 +491,17 @@ export default function AdminReports() {
             <CardDescription>Total appointments booked per surgeon</CardDescription>
           </CardHeader>
           <CardContent>
-            {surgeonBookingsData.length === 0 ? (
+            {surgeonChartData.length === 0 ? (
               <div className="h-52 flex items-center justify-center text-muted-foreground text-sm">No data for this period</div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={surgeonBookingsData} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
+                <BarChart data={surgeonChartData} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
                   <XAxis type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={90} tickLine={false} />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={110} tickLine={false} />
                   <Tooltip />
-                  <Bar dataKey="bookings" name="Bookings" fill="#145c4b" radius={[0, 4, 4, 0]}>
-                    {surgeonBookingsData.map((_, i) => (
+                  <Bar dataKey="appointments" name="Bookings" radius={[0, 4, 4, 0]}>
+                    {surgeonChartData.map((_, i) => (
                       <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                     ))}
                   </Bar>
@@ -341,59 +511,34 @@ export default function AdminReports() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Revenue by Surgeon</CardTitle>
-            <CardDescription>Total fees collected (excl. cancellations)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {surgeonBookingsData.length === 0 ? (
-              <div className="h-52 flex items-center justify-center text-muted-foreground text-sm">No data for this period</div>
-            ) : (
+        {eventData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Bookings by Event</CardTitle>
+              <CardDescription>Appointment volume per event</CardDescription>
+            </CardHeader>
+            <CardContent>
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={surgeonBookingsData} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-                  <XAxis type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={90} tickLine={false} />
-                  <Tooltip formatter={(v) => [`$${fmt(Number(v))}`, "Revenue"]} />
-                  <Bar dataKey="revenue" name="Revenue" fill="#22c55e" radius={[0, 4, 4, 0]}>
-                    {surgeonBookingsData.map((_, i) => (
-                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} opacity={0.75} />
-                    ))}
-                  </Bar>
+                <BarChart data={eventData} margin={{ top: 4, right: 16, left: -16, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="bookings" name="Bookings" fill="#145c4b" radius={[4, 4, 0, 0]} maxBarSize={64} />
                 </BarChart>
               </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
-
-      {/* Row 4: Bookings by Event */}
-      {eventData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Bookings by Event</CardTitle>
-            <CardDescription>Appointment volume per event</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={eventData} margin={{ top: 4, right: 16, left: -16, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} tickLine={false} />
-                <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="bookings" name="Bookings" fill="#145c4b" radius={[4, 4, 0, 0]} maxBarSize={64} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Detail table */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Appointment Detail</CardTitle>
-          <CardDescription>{appointments.length} records{range !== "all" ? ` · ${range === "week" ? "this week" : "this month"}` : ""}</CardDescription>
+          <CardDescription>
+            {appointments.length} records{range !== "all" ? ` · ${range === "week" ? "this week" : "this month"}` : ""}
+          </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -445,7 +590,7 @@ export default function AdminReports() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-right font-medium">
-                          {a.fee ? `$${a.fee}` : <span className="text-muted-foreground">—</span>}
+                          {a.fee != null ? fmtGBP(a.fee) : <span className="text-muted-foreground">—</span>}
                         </td>
                       </tr>
                     ))

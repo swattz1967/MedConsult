@@ -82,6 +82,8 @@ export async function sendBookingConfirmation(data: AppointmentEmailData): Promi
   const client = getClient();
   if (!client) return;
 
+  const baseUrl = process.env.APP_URL ?? "";
+
   const html = emailWrapper(`
     <h2>Your consultation is confirmed!</h2>
     <p>Hi ${data.customerName}, your appointment has been successfully booked. Here are your details:</p>
@@ -94,8 +96,51 @@ export async function sendBookingConfirmation(data: AppointmentEmailData): Promi
       ${data.fee ? `<div class="card-row"><span class="label">Consultation Fee</span><span class="value">$${data.fee}</span></div>` : ""}
       <div class="card-row"><span class="label">Status</span><span class="value"><span class="badge badge-green">Confirmed</span></span></div>
     </div>
-    <p>Please make sure to complete your pre-consultation questionnaire before your appointment. You can access it from your patient portal.</p>
-    <a href="${process.env.APP_URL ?? "#"}/portal" class="btn">Open My Portal</a>
+
+    <h2 style="margin-top:28px;">Before your appointment</h2>
+    <p>Please complete the following steps before your consultation date:</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">
+      <tr>
+        <td style="padding:0 0 12px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e8ecf0;border-radius:8px;overflow:hidden;">
+            <tr>
+              <td width="48" style="background:#fff7ed;padding:14px 16px;vertical-align:top;text-align:center;">
+                <span style="font-size:20px;">✍️</span>
+              </td>
+              <td style="padding:14px 16px;vertical-align:top;">
+                <div style="font-weight:600;font-size:14px;color:#111827;">Sign your patient declaration</div>
+                <div style="font-size:13px;color:#6b7280;margin-top:3px;">Read and accept 6 consent clauses. Required before your consultation begins.</div>
+              </td>
+              <td style="padding:14px 16px;vertical-align:middle;text-align:right;white-space:nowrap;">
+                <a href="${baseUrl}/portal/declaration" style="display:inline-block;padding:7px 16px;background:#145c4b;color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;">Sign Now</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 0 12px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e8ecf0;border-radius:8px;overflow:hidden;">
+            <tr>
+              <td width="48" style="background:#eff6ff;padding:14px 16px;vertical-align:top;text-align:center;">
+                <span style="font-size:20px;">📋</span>
+              </td>
+              <td style="padding:14px 16px;vertical-align:top;">
+                <div style="font-weight:600;font-size:14px;color:#111827;">Complete your pre-consultation form</div>
+                <div style="font-size:13px;color:#6b7280;margin-top:3px;">Provide your medical history so your surgeon can prepare for the consultation.</div>
+              </td>
+              <td style="padding:14px 16px;vertical-align:middle;text-align:right;white-space:nowrap;">
+                <a href="${baseUrl}/portal" style="display:inline-block;padding:7px 16px;background:#1e40af;color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;">Fill in Form</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <p style="font-size:13px;color:#6b7280;">You can manage everything from your patient portal at any time.</p>
+    <a href="${baseUrl}/portal" class="btn">Open My Portal</a>
   `);
 
   try {

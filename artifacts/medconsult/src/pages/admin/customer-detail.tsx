@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams } from "wouter";
 import { useGetCustomer, useUpdateCustomer, getGetCustomerQueryKey, useListAppointments, useSendDeclarationReminder } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -17,11 +18,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle2, Clock, User, Ruler, Scale, Activity, ShieldCheck, Calendar, AlertTriangle, Mail } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, User, Ruler, Scale, Activity, ShieldCheck, Calendar, AlertTriangle, Mail, Plus } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { BookAppointmentDialog } from "@/components/admin/book-appointment-dialog";
 
 const CONSENT_CLAUSES = [
   "Accuracy of Information",
@@ -44,6 +46,7 @@ export default function CustomerDetail() {
   const customerId = Number(id);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [bookDialogOpen, setBookDialogOpen] = useState(false);
 
   const { data: customer, isLoading } = useGetCustomer(customerId);
   const { data: appointments } = useListAppointments({ customerId });
@@ -142,7 +145,22 @@ export default function CustomerDetail() {
             <Clock className="h-3 w-3" /> Unsigned
           </Badge>
         )}
+        <Button
+          size="sm"
+          className="gap-1.5 shrink-0"
+          onClick={() => setBookDialogOpen(true)}
+        >
+          <Plus className="h-4 w-4" /> Book Appointment
+        </Button>
       </div>
+
+      <BookAppointmentDialog
+        open={bookDialogOpen}
+        onOpenChange={setBookDialogOpen}
+        customerId={customerId}
+        customerName={`${customer.firstName} ${customer.lastName}`}
+        customerEmail={customer.email}
+      />
 
       {/* Upcoming appointments warning if unsigned */}
       {!customer.declarationSigned && hasUpcoming && (

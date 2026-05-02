@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "wouter";
-import { useGetCustomer, useUpdateCustomer, getGetCustomerQueryKey, useListAppointments, useSendDeclarationReminder, type Appointment } from "@workspace/api-client-react";
+import { useGetCustomer, useUpdateCustomer, useUpdateAppointment, getGetCustomerQueryKey, useListAppointments, getListAppointmentsQueryKey, useSendDeclarationReminder, type Appointment } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,16 +18,178 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle2, Clock, User, Ruler, Scale, Activity, ShieldCheck, Calendar, AlertTriangle, Mail, Plus, CalendarClock, XCircle, UserX, CheckCheck, StickyNote } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, User, Ruler, Scale, Activity, ShieldCheck, Calendar, AlertTriangle, Mail, Plus, CalendarClock, XCircle, UserX, CheckCheck, StickyNote, Pencil, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
 import { BookAppointmentDialog } from "@/components/admin/book-appointment-dialog";
 import { RescheduleAppointmentDialog } from "@/components/admin/reschedule-appointment-dialog";
 import { CancelAppointmentDialog } from "@/components/admin/cancel-appointment-dialog";
 import { NoShowDialog } from "@/components/admin/no-show-dialog";
 import { CompleteAppointmentDialog } from "@/components/admin/complete-appointment-dialog";
+
+// ── Inline note editor ───────────────────────────────────────────────────────
+function NotePopover({
+  appointment,
+  customerId,
+}: {
+  appointment: Appointment;
+  customerId: number;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const update = useUpdateAppointment();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(appointment.notes ?? "");
+
+  // Re-sync draft whenever the popover opens or notes change externally
+  useEffect(() => {
+    if (open) setDraft(appointment.notes ?? "");
+  }, [open, appointment.notes]);
+
+  const hasNote = Boolean(appointment.notes?.trim());
+  const isDirty = draft.trim() !== (appointment.notes ?? "");
+
+  function save() {
+    update.mutate(
+      { id: appointment.id, data: { notes: draft.trim() || null } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({
+            queryKey: getListAppointmentsQueryKey({ customerId }),
+          });
+          toast({ title: draft.trim() ? "Note saved" : "Note cleared" });
+          setOpen(false);
+        },
+        onError: () => {
+          toast({
+            title: "Failed to save note",
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <div
+        className={cn(
+          "flex items-start gap-2 px-4 pb-2.5 group",
+          !hasNote && "pt-0",
+        )}
+      >
+        <StickyNote
+          className={cn(
+            "h-3.5 w-3.5 mt-0.5 shrink-0 transition-colors",
+            hasNote ? "text-muted-foreground/60" : "text-muted-foreground/30",
+          )}
+        />
+        {hasNote ? (
+          <p
+            className={cn(
+              "text-xs leading-relaxed flex-1 min-w-0",
+              appointment.status === "cancelled"
+                ? "text-red-600/80"
+                : appointment.status === "no_show"
+                  ? "text-orange-600/80"
+                  : "text-muted-foreground",
+            )}
+            title={appointment.notes ?? undefined}
+          >
+            {appointment.notes}
+          </p>
+        ) : (
+          <span className="text-xs text-muted-foreground/40 italic flex-1">
+            No note
+          </span>
+        )}
+
+        <PopoverTrigger asChild>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/50 hover:text-foreground shrink-0"
+            title={hasNote ? "Edit note" : "Add note"}
+          >
+            <Pencil className="h-3 w-3" />
+          </Button>
+        </PopoverTrigger>
+      </div>
+
+      <PopoverContent
+        className="w-80 p-3 shadow-lg"
+        side="bottom"
+        align="end"
+        sideOffset={4}
+      >
+        <div className="space-y-2.5">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Appointment note
+          </p>
+          <Textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Add a note about this appointment…"
+            rows={4}
+            className="text-sm resize-none focus-visible:ring-1"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save();
+              if (e.key === "Escape") setOpen(false);
+            }}
+          />
+          <div className="flex items-center justify-between gap-2">
+            {hasNote && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs text-destructive/70 hover:text-destructive"
+                onClick={() => setDraft("")}
+                disabled={update.isPending}
+              >
+                Clear
+              </Button>
+            )}
+            <div className="flex gap-1.5 ml-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-3 text-xs"
+                onClick={() => setOpen(false)}
+                disabled={update.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="h-7 px-3 text-xs gap-1.5"
+                onClick={save}
+                disabled={!isDirty || update.isPending}
+              >
+                {update.isPending && (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                )}
+                Save
+              </Button>
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground/50">
+            ⌘ Enter to save · Esc to close
+          </p>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 const CONSENT_CLAUSES = [
   "Accuracy of Information",
@@ -505,25 +667,8 @@ export default function CustomerDetail() {
                     </div>
                     </div>{/* end main row */}
 
-                    {/* Notes sub-row */}
-                    {appt.notes && appt.notes.trim() && (
-                      <div className="flex items-start gap-2 px-4 pb-3 -mt-1">
-                        <StickyNote className="h-3.5 w-3.5 text-muted-foreground/60 mt-0.5 shrink-0" />
-                        <p
-                          className={cn(
-                            "text-xs leading-relaxed",
-                            appt.status === "cancelled"
-                              ? "text-red-600/80"
-                              : appt.status === "no_show"
-                                ? "text-orange-600/80"
-                                : "text-muted-foreground",
-                          )}
-                          title={appt.notes}
-                        >
-                          {appt.notes}
-                        </p>
-                      </div>
-                    )}
+                    {/* Inline note editor */}
+                    <NotePopover appointment={appt} customerId={customerId} />
                   </div>
                 );
               })}

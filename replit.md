@@ -65,4 +65,14 @@ pnpm workspace monorepo using TypeScript.
 - `QuestionnaireWithQuestions` is a flat object with `.name`, `.type`, `.questions[]` (no `.questionnaire` nesting)
 - Config routes require injecting `type` field: `CreateNationalityBody.safeParse({ ...req.body, type: "nationality" })`
 
+## Email Notifications
+
+- Provider: **Resend** (`resend` npm package, `artifacts/api-server/src/lib/email.ts`)
+- Secret: `RESEND_API_KEY` (set in Replit Secrets — do NOT use Replit integration connector, use the secret directly)
+- Env var: `APP_URL` (shared) — base URL for portal/surgeon links in email bodies
+- `EMAIL_FROM` env var (optional) — defaults to `MedConsult <notifications@medconsult.app>`
+- Triggers: booking confirmation → customer + surgeon; status change → both parties
+- All email sends are fire-and-forget (after HTTP response), failures logged but never throw
+- NOTE: Resend integration connector was dismissed by user — use RESEND_API_KEY secret directly
+
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.

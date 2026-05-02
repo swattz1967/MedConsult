@@ -32,6 +32,7 @@ import CustomerDetail from "@/pages/admin/customer-detail";
 import QuestionnaireDetail from "@/pages/admin/questionnaire-detail";
 import ConsultationDetail from "@/pages/admin/consultation-detail";
 
+import AdminReports from "@/pages/admin/reports";
 import SurgeonDashboard from "@/pages/surgeon/dashboard";
 import SurgeonAppointments from "@/pages/surgeon/appointments";
 import ConsultationRoom from "@/pages/surgeon/consultation-room";
@@ -189,6 +190,7 @@ function AdminRouter() {
         <Route path="/admin/questionnaires" component={QuestionnairesList} />
         <Route path="/admin/consultations/:id" component={ConsultationDetail} />
         <Route path="/admin/consultations" component={ConsultationsList} />
+        <Route path="/admin/reports" component={AdminReports} />
         <Route component={NotFound} />
       </Switch>
     </AdminLayout>

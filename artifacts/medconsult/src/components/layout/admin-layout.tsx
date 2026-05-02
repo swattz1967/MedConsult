@@ -8,7 +8,8 @@ import {
   Stethoscope,
   LayoutDashboard,
   ClipboardList,
-  Menu
+  Menu,
+  BarChart2,
 } from "lucide-react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { label: "Customers", href: "/admin/customers", icon: Users },
     { label: "Questionnaires", href: "/admin/questionnaires", icon: FileText },
     { label: "Consultations", href: "/admin/consultations", icon: ClipboardList },
+    { label: "Reports", href: "/admin/reports", icon: BarChart2 },
   ];
 
   return (

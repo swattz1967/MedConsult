@@ -679,6 +679,62 @@ export default function CustomerDetail() {
               })}
             </div>
           )}
+
+          {/* Fee summary footer */}
+          {appointments && appointments.some((a) => a.fee != null) && (() => {
+            const sum = (filter: (a: Appointment) => boolean) =>
+              appointments
+                .filter((a) => a.fee != null && filter(a))
+                .reduce((acc, a) => acc + Number(a.fee), 0);
+            const pending  = sum((a) => a.status === "scheduled");
+            const earned   = sum((a) => a.status === "completed");
+            const lost     = sum((a) => a.status === "cancelled" || a.status === "no_show");
+            const total    = pending + earned;
+            const hasPending = appointments.some((a) => a.fee != null && a.status === "scheduled");
+            const hasEarned  = appointments.some((a) => a.fee != null && a.status === "completed");
+            const hasLost    = appointments.some((a) => a.fee != null && (a.status === "cancelled" || a.status === "no_show"));
+            return (
+              <div className="mt-3 pt-3 border-t mx-4">
+                <div className="flex items-center justify-between gap-4 flex-wrap text-xs">
+                  <div className="flex items-center gap-4 flex-wrap">
+                    {hasPending && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
+                        <span className="text-muted-foreground">Pending</span>
+                        <span className="font-semibold text-foreground">
+                          £{pending.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    {hasEarned && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
+                        <span className="text-muted-foreground">Earned</span>
+                        <span className="font-semibold text-foreground">
+                          £{earned.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    {hasLost && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-muted-foreground/40 shrink-0" />
+                        <span className="text-muted-foreground">Lost</span>
+                        <span className="font-medium text-muted-foreground line-through">
+                          £{lost.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    <span className="text-muted-foreground">Total</span>
+                    <span className="font-bold text-sm text-foreground">
+                      £{total.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 

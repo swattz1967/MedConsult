@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { FileText, Calendar, PenTool, CheckCircle2 } from "lucide-react";
+import { FileText, Calendar, PenTool, CheckCircle2, ClipboardList } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
@@ -107,25 +107,36 @@ export default function CustomerPortal() {
           <Card>
             <CardHeader>
               <CardTitle>Pre-consultation Forms</CardTitle>
-              <CardDescription>Forms required before your consultation</CardDescription>
+              <CardDescription>Complete these forms before your consultation appointment</CardDescription>
             </CardHeader>
             <CardContent>
-              {appointments?.length === 0 ? (
+              {!appointments?.length ? (
                 <div className="text-center py-8 text-muted-foreground">No forms required at this time.</div>
               ) : (
-                <div className="space-y-4">
-                  {appointments?.map(apt => {
+                <div className="space-y-3">
+                  {appointments.map(apt => {
                     const hasResponse = responses?.some(r => r.appointmentId === apt.id);
                     return (
-                      <div key={apt.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <div className="font-medium">Medical History Form</div>
-                          <div className="text-sm text-muted-foreground">For: {apt.event?.name}</div>
+                      <div key={apt.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            <ClipboardList className="h-4 w-4 text-primary" />
+                          </div>
+                          <div>
+                            <div className="font-medium">Pre-consultation Medical History</div>
+                            <div className="text-sm text-muted-foreground">
+                              {apt.event?.name} · {format(new Date(apt.startTime), "MMM d, yyyy")}
+                            </div>
+                          </div>
                         </div>
                         {hasResponse ? (
-                          <Badge variant="secondary" className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Submitted</Badge>
+                          <Badge variant="secondary" className="flex items-center gap-1 shrink-0">
+                            <CheckCircle2 className="h-3 w-3" /> Submitted
+                          </Badge>
                         ) : (
-                          <Button size="sm">Fill in Form</Button>
+                          <Link href={`/portal/questionnaire/${apt.id}`}>
+                            <Button size="sm" className="shrink-0">Fill in Form</Button>
+                          </Link>
                         )}
                       </div>
                     );

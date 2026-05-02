@@ -40,6 +40,7 @@ import EventsPublicList from "@/pages/events-list";
 import EventPublic from "@/pages/event-public";
 import Register from "@/pages/register";
 import CustomerPortal from "@/pages/portal/index";
+import QuestionnaireFormPage from "@/pages/portal/questionnaire";
 
 const queryClient = new QueryClient();
 
@@ -203,6 +204,7 @@ function PortalRouter() {
   return (
     <CustomerLayout>
       <Switch>
+        <Route path="/portal/questionnaire/:appointmentId" component={QuestionnaireFormPage} />
         <Route path="/portal" component={CustomerPortal} />
         <Route component={NotFound} />
       </Switch>

@@ -23,6 +23,7 @@ export const customersTable = pgTable("customers", {
   weightUnit: text("weight_unit").default("kg"),
   declarationSigned: boolean("declaration_signed").notNull().default(false),
   declarationSignedAt: text("declaration_signed_at"),
+  lastDeclarationReminderSentAt: text("last_declaration_reminder_sent_at"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Menu,
   BarChart2,
+  Settings,
 } from "lucide-react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { label: "Questionnaires", href: "/admin/questionnaires", icon: FileText },
     { label: "Consultations", href: "/admin/consultations", icon: ClipboardList },
     { label: "Reports", href: "/admin/reports", icon: BarChart2 },
+    { label: "Settings", href: "/admin/settings", icon: Settings },
   ];
 
   return (

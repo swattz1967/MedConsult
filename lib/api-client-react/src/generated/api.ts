@@ -40,6 +40,7 @@ import type {
   Event,
   EventSurgeon,
   GetDashboardSummaryParams,
+  GetReminderSettingsParams,
   GetUpcomingAppointmentsParams,
   HealthStatus,
   ListAppointmentsParams,
@@ -58,6 +59,7 @@ import type {
   Questionnaire,
   QuestionnaireResponse,
   QuestionnaireWithQuestions,
+  ReminderSettings,
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
   SendDeclarationReminder200,
@@ -75,6 +77,7 @@ import type {
   UpdateQuestionnaireResponseBody,
   UpdateSurgeonBody,
   UpdateUserBody,
+  UpsertReminderSettingsBody,
   UserProfile,
 } from "./api.schemas";
 
@@ -3532,6 +3535,193 @@ export const useSendDeclarationReminder = <
   TContext
 > => {
   return useMutation(getSendDeclarationReminderMutationOptions(options));
+};
+
+/**
+ * @summary Get declaration reminder settings for an agency
+ */
+export const getGetReminderSettingsUrl = (
+  params: GetReminderSettingsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/reminder-settings?${stringifiedParams}`
+    : `/api/reminder-settings`;
+};
+
+export const getReminderSettings = async (
+  params: GetReminderSettingsParams,
+  options?: RequestInit,
+): Promise<ReminderSettings> => {
+  return customFetch<ReminderSettings>(getGetReminderSettingsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetReminderSettingsQueryKey = (
+  params?: GetReminderSettingsParams,
+) => {
+  return [`/api/reminder-settings`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetReminderSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReminderSettings>>,
+  TError = ErrorType<void>,
+>(
+  params: GetReminderSettingsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReminderSettings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetReminderSettingsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getReminderSettings>>
+  > = ({ signal }) =>
+    getReminderSettings(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getReminderSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetReminderSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReminderSettings>>
+>;
+export type GetReminderSettingsQueryError = ErrorType<void>;
+
+/**
+ * @summary Get declaration reminder settings for an agency
+ */
+
+export function useGetReminderSettings<
+  TData = Awaited<ReturnType<typeof getReminderSettings>>,
+  TError = ErrorType<void>,
+>(
+  params: GetReminderSettingsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReminderSettings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetReminderSettingsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create or update reminder settings for an agency
+ */
+export const getUpsertReminderSettingsUrl = () => {
+  return `/api/reminder-settings`;
+};
+
+export const upsertReminderSettings = async (
+  upsertReminderSettingsBody: UpsertReminderSettingsBody,
+  options?: RequestInit,
+): Promise<ReminderSettings> => {
+  return customFetch<ReminderSettings>(getUpsertReminderSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(upsertReminderSettingsBody),
+  });
+};
+
+export const getUpsertReminderSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertReminderSettings>>,
+    TError,
+    { data: BodyType<UpsertReminderSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertReminderSettings>>,
+  TError,
+  { data: BodyType<UpsertReminderSettingsBody> },
+  TContext
+> => {
+  const mutationKey = ["upsertReminderSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertReminderSettings>>,
+    { data: BodyType<UpsertReminderSettingsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return upsertReminderSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertReminderSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertReminderSettings>>
+>;
+export type UpsertReminderSettingsMutationBody =
+  BodyType<UpsertReminderSettingsBody>;
+export type UpsertReminderSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create or update reminder settings for an agency
+ */
+export const useUpsertReminderSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertReminderSettings>>,
+    TError,
+    { data: BodyType<UpsertReminderSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertReminderSettings>>,
+  TError,
+  { data: BodyType<UpsertReminderSettingsBody> },
+  TContext
+> => {
+  return useMutation(getUpsertReminderSettingsMutationOptions(options));
 };
 
 /**

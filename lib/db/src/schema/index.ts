@@ -9,3 +9,4 @@ export * from "./appointments";
 export * from "./questionnaires";
 export * from "./consultations";
 export * from "./config";
+export * from "./reminderRules";

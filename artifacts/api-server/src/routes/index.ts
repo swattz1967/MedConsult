@@ -11,6 +11,7 @@ import consultationsRouter from "./consultations";
 import configRouter from "./config";
 import dashboardRouter from "./dashboard";
 import storageRouter from "./storage";
+import reminderSettingsRouter from "./reminder-settings";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(consultationsRouter);
 router.use(configRouter);
 router.use(dashboardRouter);
 router.use(storageRouter);
+router.use(reminderSettingsRouter);
 
 export default router;

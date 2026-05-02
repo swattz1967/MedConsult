@@ -831,6 +831,51 @@ paths:
         "404":
           description: Customer not found
 
+  # --- REMINDER SETTINGS ---
+  /reminder-settings:
+    get:
+      operationId: getReminderSettings
+      tags: [reminderSettings]
+      summary: Get declaration reminder settings for an agency
+      parameters:
+        - name: agencyId
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reminder settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReminderSettings"
+        "404":
+          description: Not found
+    put:
+      operationId: upsertReminderSettings
+      tags: [reminderSettings]
+      summary: Create or update reminder settings for an agency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertReminderSettingsBody"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReminderSettings"
+        "201":
+          description: Created settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReminderSettings"
+
   # --- QUESTIONNAIRES ---
   /questionnaires:
     get:
@@ -1942,6 +1987,48 @@ components:
         - declarationSigned
         - createdAt
         - updatedAt
+
+    ReminderSettings:
+      type: object
+      properties:
+        id:
+          type: integer
+        agencyId:
+          type: integer
+        enabled:
+          type: boolean
+        daysBeforeAppointment:
+          type: integer
+        lastRunAt:
+          type: ["string", "null"]
+        remindersSentTotal:
+          type: integer
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - agencyId
+        - enabled
+        - daysBeforeAppointment
+        - remindersSentTotal
+        - createdAt
+        - updatedAt
+
+    UpsertReminderSettingsBody:
+      type: object
+      properties:
+        agencyId:
+          type: integer
+        enabled:
+          type: boolean
+        daysBeforeAppointment:
+          type: integer
+      required:
+        - agencyId
+        - enabled
+        - daysBeforeAppointment
 
     CreateCustomerBody:
       type: object

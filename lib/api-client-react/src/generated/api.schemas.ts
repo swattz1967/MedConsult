@@ -370,6 +370,24 @@ export interface Customer {
   updatedAt: string;
 }
 
+export interface ReminderSettings {
+  id: number;
+  agencyId: number;
+  enabled: boolean;
+  daysBeforeAppointment: number;
+  /** @nullable */
+  lastRunAt?: string | null;
+  remindersSentTotal: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertReminderSettingsBody {
+  agencyId: number;
+  enabled: boolean;
+  daysBeforeAppointment: number;
+}
+
 export interface CreateCustomerBody {
   agencyId: number;
   firstName: string;
@@ -870,6 +888,10 @@ export type ListCustomersParams = {
 
 export type SendDeclarationReminder200 = {
   ok: boolean;
+};
+
+export type GetReminderSettingsParams = {
+  agencyId: number;
 };
 
 export type ListQuestionnairesParams = {

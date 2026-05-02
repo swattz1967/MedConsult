@@ -934,6 +934,44 @@ export const SendDeclarationReminderResponse = zod.object({
 });
 
 /**
+ * @summary Get declaration reminder settings for an agency
+ */
+export const GetReminderSettingsQueryParams = zod.object({
+  agencyId: zod.coerce.number(),
+});
+
+export const GetReminderSettingsResponse = zod.object({
+  id: zod.number(),
+  agencyId: zod.number(),
+  enabled: zod.boolean(),
+  daysBeforeAppointment: zod.number(),
+  lastRunAt: zod.string().nullish(),
+  remindersSentTotal: zod.number(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Create or update reminder settings for an agency
+ */
+export const UpsertReminderSettingsBody = zod.object({
+  agencyId: zod.number(),
+  enabled: zod.boolean(),
+  daysBeforeAppointment: zod.number(),
+});
+
+export const UpsertReminderSettingsResponse = zod.object({
+  id: zod.number(),
+  agencyId: zod.number(),
+  enabled: zod.boolean(),
+  daysBeforeAppointment: zod.number(),
+  lastRunAt: zod.string().nullish(),
+  remindersSentTotal: zod.number(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
  * @summary List questionnaires
  */
 export const ListQuestionnairesQueryParams = zod.object({

@@ -1,22 +1,46 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: MedConsult API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: agencies
+    description: Booking agency management
+  - name: users
+    description: User management
+  - name: surgeons
+    description: Surgeon management
+  - name: procedures
+    description: Surgical procedure management
+  - name: events
+    description: Event management
+  - name: customers
+    description: Customer management
+  - name: appointments
+    description: Appointment scheduling
+  - name: questionnaires
+    description: Questionnaire management
+  - name: consultation-records
+    description: Consultation record management
+  - name: media
+    description: File/media management
+  - name: dashboard
+    description: Dashboard and reporting
+  - name: config
+    description: Configuration lists
+  - name: storage
+    description: Object storage operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +48,1439 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # --- AGENCIES ---
+  /agencies:
+    get:
+      operationId: listAgencies
+      tags: [agencies]
+      summary: List all agencies
+      responses:
+        "200":
+          description: List of agencies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Agency"
+    post:
+      operationId: createAgency
+      tags: [agencies]
+      summary: Create agency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAgencyBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agency"
+  /agencies/{id}:
+    get:
+      operationId: getAgency
+      tags: [agencies]
+      summary: Get agency by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Agency
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agency"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateAgency
+      tags: [agencies]
+      summary: Update agency
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAgencyBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agency"
+    delete:
+      operationId: deleteAgency
+      tags: [agencies]
+      summary: Delete agency
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # --- USERS / AUTH ---
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      tags: [users]
+      summary: Get current authenticated user profile
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Unauthorized
+  /users/me/sync:
+    post:
+      operationId: syncCurrentUser
+      tags: [users]
+      summary: Sync Clerk user to local DB after sign-in/register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncUserBody"
+      responses:
+        "200":
+          description: Synced user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users (admin only)
+      parameters:
+        - name: agencyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: role
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserProfile"
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get user by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  # --- SURGEONS ---
+  /surgeons:
+    get:
+      operationId: listSurgeons
+      tags: [surgeons]
+      summary: List surgeons
+      parameters:
+        - name: agencyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Surgeons list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Surgeon"
+    post:
+      operationId: createSurgeon
+      tags: [surgeons]
+      summary: Create surgeon
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSurgeonBody"
+      responses:
+        "201":
+          description: Created surgeon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Surgeon"
+  /surgeons/{id}:
+    get:
+      operationId: getSurgeon
+      tags: [surgeons]
+      summary: Get surgeon by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Surgeon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Surgeon"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateSurgeon
+      tags: [surgeons]
+      summary: Update surgeon
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSurgeonBody"
+      responses:
+        "200":
+          description: Updated surgeon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Surgeon"
+    delete:
+      operationId: deleteSurgeon
+      tags: [surgeons]
+      summary: Delete surgeon
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # --- PROCEDURES ---
+  /surgeons/{surgeonId}/procedures:
+    get:
+      operationId: listProcedures
+      tags: [procedures]
+      summary: List procedures for a surgeon
+      parameters:
+        - name: surgeonId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Procedures list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Procedure"
+    post:
+      operationId: createProcedure
+      tags: [procedures]
+      summary: Add procedure to surgeon
+      parameters:
+        - name: surgeonId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProcedureBody"
+      responses:
+        "201":
+          description: Created procedure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Procedure"
+  /surgeons/{surgeonId}/procedures/{id}:
+    patch:
+      operationId: updateProcedure
+      tags: [procedures]
+      summary: Update procedure
+      parameters:
+        - name: surgeonId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProcedureBody"
+      responses:
+        "200":
+          description: Updated procedure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Procedure"
+    delete:
+      operationId: deleteProcedure
+      tags: [procedures]
+      summary: Delete procedure
+      parameters:
+        - name: surgeonId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # --- EVENTS ---
+  /events:
+    get:
+      operationId: listEvents
+      tags: [events]
+      summary: List events
+      parameters:
+        - name: agencyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Events list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+    post:
+      operationId: createEvent
+      tags: [events]
+      summary: Create event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEventBody"
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+  /events/{id}:
+    get:
+      operationId: getEvent
+      tags: [events]
+      summary: Get event by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateEvent
+      tags: [events]
+      summary: Update event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEventBody"
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+    delete:
+      operationId: deleteEvent
+      tags: [events]
+      summary: Delete event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # --- EVENT SURGEONS ---
+  /events/{eventId}/surgeons:
+    get:
+      operationId: listEventSurgeons
+      tags: [events]
+      summary: List surgeons assigned to an event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Event surgeons
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventSurgeon"
+    post:
+      operationId: addEventSurgeon
+      tags: [events]
+      summary: Assign a surgeon to an event with fee/slot defaults
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEventSurgeonBody"
+      responses:
+        "201":
+          description: Assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSurgeon"
+  /events/{eventId}/surgeons/{id}:
+    patch:
+      operationId: updateEventSurgeon
+      tags: [events]
+      summary: Update surgeon event settings
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEventSurgeonBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSurgeon"
+    delete:
+      operationId: removeEventSurgeon
+      tags: [events]
+      summary: Remove surgeon from event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  # --- APPOINTMENTS ---
+  /appointments:
+    get:
+      operationId: listAppointments
+      tags: [appointments]
+      summary: List appointments
+      parameters:
+        - name: eventId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: surgeonId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: customerId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Appointments list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Appointment"
+    post:
+      operationId: createAppointment
+      tags: [appointments]
+      summary: Create appointment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAppointmentBody"
+      responses:
+        "201":
+          description: Created appointment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+  /appointments/{id}:
+    get:
+      operationId: getAppointment
+      tags: [appointments]
+      summary: Get appointment by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Appointment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateAppointment
+      tags: [appointments]
+      summary: Update appointment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAppointmentBody"
+      responses:
+        "200":
+          description: Updated appointment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+    delete:
+      operationId: deleteAppointment
+      tags: [appointments]
+      summary: Delete appointment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # --- CUSTOMERS ---
+  /customers:
+    get:
+      operationId: listCustomers
+      tags: [customers]
+      summary: List customers
+      parameters:
+        - name: agencyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Customers list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+    post:
+      operationId: createCustomer
+      tags: [customers]
+      summary: Register/create customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomerBody"
+      responses:
+        "201":
+          description: Created customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+  /customers/{id}:
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: Get customer by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateCustomer
+      tags: [customers]
+      summary: Update customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCustomerBody"
+      responses:
+        "200":
+          description: Updated customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+    delete:
+      operationId: deleteCustomer
+      tags: [customers]
+      summary: Delete customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # --- QUESTIONNAIRES ---
+  /questionnaires:
+    get:
+      operationId: listQuestionnaires
+      tags: [questionnaires]
+      summary: List questionnaires
+      parameters:
+        - name: agencyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: type
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Questionnaires list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Questionnaire"
+    post:
+      operationId: createQuestionnaire
+      tags: [questionnaires]
+      summary: Create questionnaire
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQuestionnaireBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Questionnaire"
+  /questionnaires/{id}:
+    get:
+      operationId: getQuestionnaire
+      tags: [questionnaires]
+      summary: Get questionnaire by ID (includes questions)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Questionnaire with questions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionnaireWithQuestions"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateQuestionnaire
+      tags: [questionnaires]
+      summary: Update questionnaire
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateQuestionnaireBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Questionnaire"
+    delete:
+      operationId: deleteQuestionnaire
+      tags: [questionnaires]
+      summary: Delete questionnaire
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # --- QUESTIONS ---
+  /questionnaires/{questionnaireId}/questions:
+    get:
+      operationId: listQuestions
+      tags: [questionnaires]
+      summary: List questions for a questionnaire
+      parameters:
+        - name: questionnaireId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Questions list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Question"
+    post:
+      operationId: createQuestion
+      tags: [questionnaires]
+      summary: Add question to questionnaire
+      parameters:
+        - name: questionnaireId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQuestionBody"
+      responses:
+        "201":
+          description: Created question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+  /questionnaires/{questionnaireId}/questions/{id}:
+    patch:
+      operationId: updateQuestion
+      tags: [questionnaires]
+      summary: Update question
+      parameters:
+        - name: questionnaireId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateQuestionBody"
+      responses:
+        "200":
+          description: Updated question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+    delete:
+      operationId: deleteQuestion
+      tags: [questionnaires]
+      summary: Delete question
+      parameters:
+        - name: questionnaireId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # --- QUESTIONNAIRE RESPONSES ---
+  /questionnaire-responses:
+    get:
+      operationId: listQuestionnaireResponses
+      tags: [questionnaires]
+      summary: List questionnaire responses
+      parameters:
+        - name: appointmentId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: customerId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: questionnaireId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Responses list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QuestionnaireResponse"
+    post:
+      operationId: submitQuestionnaireResponse
+      tags: [questionnaires]
+      summary: Submit questionnaire responses
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQuestionnaireResponseBody"
+      responses:
+        "201":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionnaireResponse"
+  /questionnaire-responses/{id}:
+    get:
+      operationId: getQuestionnaireResponse
+      tags: [questionnaires]
+      summary: Get questionnaire response by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionnaireResponse"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateQuestionnaireResponse
+      tags: [questionnaires]
+      summary: Update questionnaire response
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateQuestionnaireResponseBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionnaireResponse"
+
+  # --- CONSULTATION RECORDS ---
+  /consultation-records:
+    get:
+      operationId: listConsultationRecords
+      tags: [consultation-records]
+      summary: List consultation records
+      parameters:
+        - name: appointmentId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: customerId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: surgeonId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Consultation records list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConsultationRecord"
+    post:
+      operationId: createConsultationRecord
+      tags: [consultation-records]
+      summary: Create consultation record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConsultationRecordBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsultationRecord"
+  /consultation-records/{id}:
+    get:
+      operationId: getConsultationRecord
+      tags: [consultation-records]
+      summary: Get consultation record by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Consultation record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsultationRecord"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateConsultationRecord
+      tags: [consultation-records]
+      summary: Update consultation record (notes, answers, status)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateConsultationRecordBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsultationRecord"
+  /consultation-records/{id}/complete:
+    post:
+      operationId: completeConsultationRecord
+      tags: [consultation-records]
+      summary: Mark consultation as completed and signed off
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsultationRecord"
+
+  # --- MEDIA ---
+  /consultation-records/{recordId}/media:
+    get:
+      operationId: listConsultationMedia
+      tags: [media]
+      summary: List media files for a consultation record
+      parameters:
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Media list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConsultationMedia"
+    post:
+      operationId: addConsultationMedia
+      tags: [media]
+      summary: Add media file reference to a consultation record
+      parameters:
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConsultationMediaBody"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsultationMedia"
+  /consultation-records/{recordId}/media/{id}:
+    delete:
+      operationId: deleteConsultationMedia
+      tags: [media]
+      summary: Delete media file from consultation record
+      parameters:
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # --- STORAGE ---
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned upload URL for file upload to object storage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestUploadUrlBody"
+      responses:
+        "200":
+          description: Presigned URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
+  /storage/objects/{path}:
+    get:
+      operationId: getStorageObject
+      tags: [storage]
+      summary: Serve a stored object (private)
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object content
+
+  # --- CONFIG LISTS ---
+  /config/nationalities:
+    get:
+      operationId: listNationalities
+      tags: [config]
+      summary: List configured nationalities
+      parameters:
+        - name: agencyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Nationalities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConfigItem"
+    post:
+      operationId: createNationality
+      tags: [config]
+      summary: Add nationality
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConfigItemBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigItem"
+  /config/nationalities/{id}:
+    delete:
+      operationId: deleteNationality
+      tags: [config]
+      summary: Delete nationality
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /config/languages:
+    get:
+      operationId: listLanguages
+      tags: [config]
+      summary: List configured languages
+      parameters:
+        - name: agencyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Languages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConfigItem"
+    post:
+      operationId: createLanguage
+      tags: [config]
+      summary: Add language
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConfigItemBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigItem"
+  /config/languages/{id}:
+    delete:
+      operationId: deleteLanguage
+      tags: [config]
+      summary: Delete language
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /config/medical-services:
+    get:
+      operationId: listMedicalServices
+      tags: [config]
+      summary: List configured medical services of interest
+      parameters:
+        - name: agencyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Medical services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConfigItem"
+    post:
+      operationId: createMedicalService
+      tags: [config]
+      summary: Add medical service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConfigItemBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigItem"
+  /config/medical-services/{id}:
+    delete:
+      operationId: deleteMedicalService
+      tags: [config]
+      summary: Delete medical service
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # --- DASHBOARD ---
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary stats
+      parameters:
+        - name: agencyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/upcoming-appointments:
+    get:
+      operationId: getUpcomingAppointments
+      tags: [dashboard]
+      summary: Get upcoming appointments (next 7 days)
+      parameters:
+        - name: agencyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Upcoming appointments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Appointment"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +1491,1003 @@ components:
       required:
         - status
 
+    Agency:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: ["string", "null"]
+        primaryColor:
+          type: ["string", "null"]
+        secondaryColor:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+
+    CreateAgencyBody:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: ["string", "null"]
+        primaryColor:
+          type: ["string", "null"]
+        secondaryColor:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+      required:
+        - name
+
+    UpdateAgencyBody:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        primaryColor:
+          type: ["string", "null"]
+        secondaryColor:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkId:
+          type: string
+        email:
+          type: string
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [app_owner, admin, surgeon, customer]
+        agencyId:
+          type: ["integer", "null"]
+        surgeonId:
+          type: ["integer", "null"]
+        customerId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - clerkId
+        - email
+        - role
+        - createdAt
+        - updatedAt
+
+    SyncUserBody:
+      type: object
+      properties:
+        clerkId:
+          type: string
+        email:
+          type: string
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+      required:
+        - clerkId
+        - email
+
+    UpdateUserBody:
+      type: object
+      properties:
+        role:
+          type: ["string", "null"]
+          enum: [app_owner, admin, surgeon, customer, "null"]
+        agencyId:
+          type: ["integer", "null"]
+
+    Surgeon:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: ["integer", "null"]
+        agencyId:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        specialization:
+          type: ["string", "null"]
+        bio:
+          type: ["string", "null"]
+        photoUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - agencyId
+        - firstName
+        - lastName
+        - email
+        - createdAt
+        - updatedAt
+
+    CreateSurgeonBody:
+      type: object
+      properties:
+        agencyId:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        specialization:
+          type: ["string", "null"]
+        bio:
+          type: ["string", "null"]
+        photoUrl:
+          type: ["string", "null"]
+      required:
+        - agencyId
+        - firstName
+        - lastName
+        - email
+
+    UpdateSurgeonBody:
+      type: object
+      properties:
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        specialization:
+          type: ["string", "null"]
+        bio:
+          type: ["string", "null"]
+        photoUrl:
+          type: ["string", "null"]
+
+    Procedure:
+      type: object
+      properties:
+        id:
+          type: integer
+        surgeonId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - surgeonId
+        - name
+        - createdAt
+
+    CreateProcedureBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+      required:
+        - name
+
+    UpdateProcedureBody:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+
+    Event:
+      type: object
+      properties:
+        id:
+          type: integer
+        agencyId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        venue:
+          type: ["string", "null"]
+        startDate:
+          type: string
+        endDate:
+          type: string
+        status:
+          type: string
+          enum: [draft, published, closed]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - agencyId
+        - name
+        - startDate
+        - endDate
+        - status
+        - createdAt
+        - updatedAt
+
+    CreateEventBody:
+      type: object
+      properties:
+        agencyId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        venue:
+          type: ["string", "null"]
+        startDate:
+          type: string
+        endDate:
+          type: string
+        status:
+          type: string
+          enum: [draft, published, closed]
+      required:
+        - agencyId
+        - name
+        - startDate
+        - endDate
+
+    UpdateEventBody:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        venue:
+          type: ["string", "null"]
+        startDate:
+          type: ["string", "null"]
+        endDate:
+          type: ["string", "null"]
+        status:
+          type: ["string", "null"]
+          enum: [draft, published, closed, "null"]
+
+    EventSurgeon:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventId:
+          type: integer
+        surgeonId:
+          type: integer
+        defaultFee:
+          type: ["number", "null"]
+        defaultSlotMinutes:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - eventId
+        - surgeonId
+        - createdAt
+
+    CreateEventSurgeonBody:
+      type: object
+      properties:
+        surgeonId:
+          type: integer
+        defaultFee:
+          type: ["number", "null"]
+        defaultSlotMinutes:
+          type: ["integer", "null"]
+      required:
+        - surgeonId
+
+    UpdateEventSurgeonBody:
+      type: object
+      properties:
+        defaultFee:
+          type: ["number", "null"]
+        defaultSlotMinutes:
+          type: ["integer", "null"]
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+        agencyId:
+          type: integer
+        userId:
+          type: ["integer", "null"]
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        dialingCode:
+          type: ["string", "null"]
+        nationality:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        postcode:
+          type: ["string", "null"]
+        preferredLanguage:
+          type: ["string", "null"]
+        medicalServicesInterest:
+          type: ["string", "null"]
+        heightCm:
+          type: ["number", "null"]
+        weightKg:
+          type: ["number", "null"]
+        heightUnit:
+          type: ["string", "null"]
+          enum: [cm, ft, "null"]
+        weightUnit:
+          type: ["string", "null"]
+          enum: [kg, lbs, "null"]
+        declarationSigned:
+          type: boolean
+        declarationSignedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - agencyId
+        - firstName
+        - lastName
+        - declarationSigned
+        - createdAt
+        - updatedAt
+
+    CreateCustomerBody:
+      type: object
+      properties:
+        agencyId:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        dialingCode:
+          type: ["string", "null"]
+        nationality:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        postcode:
+          type: ["string", "null"]
+        preferredLanguage:
+          type: ["string", "null"]
+        medicalServicesInterest:
+          type: ["string", "null"]
+        heightCm:
+          type: ["number", "null"]
+        weightKg:
+          type: ["number", "null"]
+        heightUnit:
+          type: ["string", "null"]
+        weightUnit:
+          type: ["string", "null"]
+      required:
+        - agencyId
+        - firstName
+        - lastName
+
+    UpdateCustomerBody:
+      type: object
+      properties:
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        dialingCode:
+          type: ["string", "null"]
+        nationality:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        postcode:
+          type: ["string", "null"]
+        preferredLanguage:
+          type: ["string", "null"]
+        medicalServicesInterest:
+          type: ["string", "null"]
+        heightCm:
+          type: ["number", "null"]
+        weightKg:
+          type: ["number", "null"]
+        heightUnit:
+          type: ["string", "null"]
+        weightUnit:
+          type: ["string", "null"]
+        declarationSigned:
+          type: ["boolean", "null"]
+        declarationSignedAt:
+          type: ["string", "null"]
+
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventId:
+          type: integer
+        surgeonId:
+          type: integer
+        customerId:
+          type: integer
+        startTime:
+          type: string
+        endTime:
+          type: string
+        fee:
+          type: ["number", "null"]
+        slotMinutes:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [scheduled, completed, cancelled, no_show]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        customer:
+          $ref: "#/components/schemas/Customer"
+        surgeon:
+          $ref: "#/components/schemas/Surgeon"
+        event:
+          $ref: "#/components/schemas/Event"
+      required:
+        - id
+        - eventId
+        - surgeonId
+        - customerId
+        - startTime
+        - endTime
+        - status
+        - createdAt
+        - updatedAt
+        - customer
+        - surgeon
+        - event
+
+    CreateAppointmentBody:
+      type: object
+      properties:
+        eventId:
+          type: integer
+        surgeonId:
+          type: integer
+        customerId:
+          type: integer
+        startTime:
+          type: string
+        endTime:
+          type: string
+        fee:
+          type: ["number", "null"]
+        slotMinutes:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [scheduled, completed, cancelled, no_show]
+        notes:
+          type: ["string", "null"]
+      required:
+        - eventId
+        - surgeonId
+        - customerId
+        - startTime
+        - endTime
+
+    UpdateAppointmentBody:
+      type: object
+      properties:
+        startTime:
+          type: ["string", "null"]
+        endTime:
+          type: ["string", "null"]
+        fee:
+          type: ["number", "null"]
+        slotMinutes:
+          type: ["integer", "null"]
+        status:
+          type: ["string", "null"]
+          enum: [scheduled, completed, cancelled, no_show, "null"]
+        notes:
+          type: ["string", "null"]
+
+    Questionnaire:
+      type: object
+      properties:
+        id:
+          type: integer
+        agencyId:
+          type: integer
+        surgeonId:
+          type: ["integer", "null"]
+        name:
+          type: string
+        type:
+          type: string
+          enum: [pre_consultation, surgeon_consultation, declaration]
+        isDefault:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - agencyId
+        - name
+        - type
+        - isDefault
+        - createdAt
+        - updatedAt
+
+    QuestionnaireWithQuestions:
+      type: object
+      properties:
+        id:
+          type: integer
+        agencyId:
+          type: integer
+        surgeonId:
+          type: ["integer", "null"]
+        name:
+          type: string
+        type:
+          type: string
+          enum: [pre_consultation, surgeon_consultation, declaration]
+        isDefault:
+          type: boolean
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Question"
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - agencyId
+        - name
+        - type
+        - isDefault
+        - questions
+        - createdAt
+        - updatedAt
+
+    CreateQuestionnaireBody:
+      type: object
+      properties:
+        agencyId:
+          type: integer
+        surgeonId:
+          type: ["integer", "null"]
+        name:
+          type: string
+        type:
+          type: string
+          enum: [pre_consultation, surgeon_consultation, declaration]
+        isDefault:
+          type: boolean
+        copyFromId:
+          type: ["integer", "null"]
+      required:
+        - agencyId
+        - name
+        - type
+
+    UpdateQuestionnaireBody:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        isDefault:
+          type: ["boolean", "null"]
+        surgeonId:
+          type: ["integer", "null"]
+
+    Question:
+      type: object
+      properties:
+        id:
+          type: integer
+        questionnaireId:
+          type: integer
+        text:
+          type: string
+        type:
+          type: string
+          enum: [text, multiple_choice, dropdown, yes_no]
+        options:
+          type: ["string", "null"]
+        isRequired:
+          type: boolean
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - questionnaireId
+        - text
+        - type
+        - isRequired
+        - sortOrder
+        - createdAt
+
+    CreateQuestionBody:
+      type: object
+      properties:
+        text:
+          type: string
+        type:
+          type: string
+          enum: [text, multiple_choice, dropdown, yes_no]
+        options:
+          type: ["string", "null"]
+        isRequired:
+          type: boolean
+        sortOrder:
+          type: integer
+      required:
+        - text
+        - type
+
+    UpdateQuestionBody:
+      type: object
+      properties:
+        text:
+          type: ["string", "null"]
+        type:
+          type: ["string", "null"]
+          enum: [text, multiple_choice, dropdown, yes_no, "null"]
+        options:
+          type: ["string", "null"]
+        isRequired:
+          type: ["boolean", "null"]
+        sortOrder:
+          type: ["integer", "null"]
+
+    QuestionnaireResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        questionnaireId:
+          type: integer
+        appointmentId:
+          type: ["integer", "null"]
+        customerId:
+          type: integer
+        answers:
+          type: string
+        submittedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - questionnaireId
+        - customerId
+        - answers
+        - createdAt
+        - updatedAt
+
+    CreateQuestionnaireResponseBody:
+      type: object
+      properties:
+        questionnaireId:
+          type: integer
+        appointmentId:
+          type: ["integer", "null"]
+        customerId:
+          type: integer
+        answers:
+          type: string
+        submittedAt:
+          type: ["string", "null"]
+      required:
+        - questionnaireId
+        - customerId
+        - answers
+
+    UpdateQuestionnaireResponseBody:
+      type: object
+      properties:
+        answers:
+          type: ["string", "null"]
+        submittedAt:
+          type: ["string", "null"]
+
+    ConsultationRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        appointmentId:
+          type: integer
+        surgeonId:
+          type: integer
+        customerId:
+          type: integer
+        notes:
+          type: ["string", "null"]
+        surgeonAnswers:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [in_progress, completed]
+        completedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - appointmentId
+        - surgeonId
+        - customerId
+        - status
+        - createdAt
+        - updatedAt
+
+    CreateConsultationRecordBody:
+      type: object
+      properties:
+        appointmentId:
+          type: integer
+        surgeonId:
+          type: integer
+        customerId:
+          type: integer
+        notes:
+          type: ["string", "null"]
+        surgeonAnswers:
+          type: ["string", "null"]
+      required:
+        - appointmentId
+        - surgeonId
+        - customerId
+
+    UpdateConsultationRecordBody:
+      type: object
+      properties:
+        notes:
+          type: ["string", "null"]
+        surgeonAnswers:
+          type: ["string", "null"]
+        status:
+          type: ["string", "null"]
+          enum: [in_progress, completed, "null"]
+
+    ConsultationMedia:
+      type: object
+      properties:
+        id:
+          type: integer
+        consultationRecordId:
+          type: integer
+        mediaType:
+          type: string
+          enum: [photo, document, voice_recording]
+        fileName:
+          type: string
+        objectKey:
+          type: string
+        url:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - consultationRecordId
+        - mediaType
+        - fileName
+        - objectKey
+        - createdAt
+
+    CreateConsultationMediaBody:
+      type: object
+      properties:
+        mediaType:
+          type: string
+          enum: [photo, document, voice_recording]
+        fileName:
+          type: string
+        objectKey:
+          type: string
+      required:
+        - mediaType
+        - fileName
+        - objectKey
+
+    ConfigItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        agencyId:
+          type: integer
+        value:
+          type: string
+        label:
+          type: string
+        type:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - agencyId
+        - value
+        - label
+        - type
+        - createdAt
+
+    CreateConfigItemBody:
+      type: object
+      properties:
+        agencyId:
+          type: integer
+        value:
+          type: string
+        label:
+          type: string
+        type:
+          type: string
+      required:
+        - agencyId
+        - value
+        - label
+        - type
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalAgencies:
+          type: integer
+        totalSurgeons:
+          type: integer
+        totalCustomers:
+          type: integer
+        totalEvents:
+          type: integer
+        totalAppointments:
+          type: integer
+        appointmentsToday:
+          type: integer
+        completedConsultations:
+          type: integer
+        pendingConsultations:
+          type: integer
+        upcomingEvents:
+          type: integer
+      required:
+        - totalAgencies
+        - totalSurgeons
+        - totalCustomers
+        - totalEvents
+        - totalAppointments
+        - appointmentsToday
+        - completedConsultations
+        - pendingConsultations
+        - upcomingEvents
+
+    RequestUploadUrlBody:
+      type: object
+      properties:
+        fileName:
+          type: string
+        contentType:
+          type: string
+        folder:
+          type: string
+      required:
+        - fileName
+        - contentType
+
+    RequestUploadUrlResponse:
+      type: object
+      properties:
+        uploadUrl:
+          type: string
+        objectKey:
+          type: string
+      required:
+        - uploadUrl
+        - objectKey

@@ -1,0 +1,108 @@
+import { Router, type IRouter } from "express";
+import { eq, and } from "drizzle-orm";
+import { db, configItemsTable } from "@workspace/db";
+import {
+  CreateNationalityBody,
+  CreateLanguageBody,
+  CreateMedicalServiceBody,
+  DeleteNationalityParams,
+  DeleteLanguageParams,
+  DeleteMedicalServiceParams,
+  ListNationalitiesQueryParams,
+  ListLanguagesQueryParams,
+  ListMedicalServicesQueryParams,
+} from "@workspace/api-zod";
+
+const router: IRouter = Router();
+
+// --- NATIONALITIES ---
+
+router.get("/config/nationalities", async (req, res): Promise<void> => {
+  const qp = ListNationalitiesQueryParams.safeParse(req.query);
+  const conditions: ReturnType<typeof eq>[] = [eq(configItemsTable.type, "nationality")];
+  if (qp.success && qp.data.agencyId) conditions.push(eq(configItemsTable.agencyId, qp.data.agencyId));
+  const items = await db.select().from(configItemsTable).where(and(...conditions)).orderBy(configItemsTable.label);
+  res.json(items);
+});
+
+router.post("/config/nationalities", async (req, res): Promise<void> => {
+  const parsed = CreateNationalityBody.safeParse({ ...req.body, type: "nationality" });
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const [item] = await db.insert(configItemsTable).values(parsed.data).returning();
+  res.status(201).json(item);
+});
+
+router.delete("/config/nationalities/:id", async (req, res): Promise<void> => {
+  const params = DeleteNationalityParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  await db.delete(configItemsTable).where(and(eq(configItemsTable.id, params.data.id), eq(configItemsTable.type, "nationality")));
+  res.sendStatus(204);
+});
+
+// --- LANGUAGES ---
+
+router.get("/config/languages", async (req, res): Promise<void> => {
+  const qp = ListLanguagesQueryParams.safeParse(req.query);
+  const conditions: ReturnType<typeof eq>[] = [eq(configItemsTable.type, "language")];
+  if (qp.success && qp.data.agencyId) conditions.push(eq(configItemsTable.agencyId, qp.data.agencyId));
+  const items = await db.select().from(configItemsTable).where(and(...conditions)).orderBy(configItemsTable.label);
+  res.json(items);
+});
+
+router.post("/config/languages", async (req, res): Promise<void> => {
+  const parsed = CreateLanguageBody.safeParse({ ...req.body, type: "language" });
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const [item] = await db.insert(configItemsTable).values(parsed.data).returning();
+  res.status(201).json(item);
+});
+
+router.delete("/config/languages/:id", async (req, res): Promise<void> => {
+  const params = DeleteLanguageParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  await db.delete(configItemsTable).where(and(eq(configItemsTable.id, params.data.id), eq(configItemsTable.type, "language")));
+  res.sendStatus(204);
+});
+
+// --- MEDICAL SERVICES ---
+
+router.get("/config/medical-services", async (req, res): Promise<void> => {
+  const qp = ListMedicalServicesQueryParams.safeParse(req.query);
+  const conditions: ReturnType<typeof eq>[] = [eq(configItemsTable.type, "medical_service")];
+  if (qp.success && qp.data.agencyId) conditions.push(eq(configItemsTable.agencyId, qp.data.agencyId));
+  const items = await db.select().from(configItemsTable).where(and(...conditions)).orderBy(configItemsTable.label);
+  res.json(items);
+});
+
+router.post("/config/medical-services", async (req, res): Promise<void> => {
+  const parsed = CreateMedicalServiceBody.safeParse({ ...req.body, type: "medical_service" });
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const [item] = await db.insert(configItemsTable).values(parsed.data).returning();
+  res.status(201).json(item);
+});
+
+router.delete("/config/medical-services/:id", async (req, res): Promise<void> => {
+  const params = DeleteMedicalServiceParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  await db.delete(configItemsTable).where(and(eq(configItemsTable.id, params.data.id), eq(configItemsTable.type, "medical_service")));
+  res.sendStatus(204);
+});
+
+export default router;

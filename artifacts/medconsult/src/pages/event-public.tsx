@@ -1,5 +1,6 @@
 import { useParams } from "wouter";
-import { useGetEvent, useListEventSurgeons, useListAppointments, useListSurgeons } from "@workspace/api-client-react";
+import { useGetEvent, useListEventSurgeons, useListAppointments, useListSurgeons, useGetCurrentUser } from "@workspace/api-client-react";
+import { useUser } from "@clerk/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -12,10 +13,23 @@ export default function EventPublic() {
   const { id } = useParams();
   const eventId = Number(id);
 
+  const { isSignedIn } = useUser();
+  const { data: currentUser } = useGetCurrentUser();
+
   const { data: event, isLoading: isLoadingEvent } = useGetEvent(eventId);
   const { data: eventSurgeons, isLoading: isLoadingSurgeons } = useListEventSurgeons(eventId);
   const { data: allSurgeons } = useListSurgeons();
   const { data: appointments } = useListAppointments({ eventId });
+
+  const getBookingHref = (surgeonId: number) => {
+    if (!isSignedIn) {
+      return `/sign-in?redirect_url=${encodeURIComponent(`/events/${eventId}/book/${surgeonId}`)}`;
+    }
+    if (!currentUser?.customerId) {
+      return `/register?eventId=${eventId}&surgeonId=${surgeonId}`;
+    }
+    return `/events/${eventId}/book/${surgeonId}`;
+  };
 
   if (isLoadingEvent) {
     return <div className="min-h-[100dvh] bg-slate-50 p-8"><Skeleton className="h-64 max-w-4xl mx-auto" /></div>;
@@ -110,7 +124,7 @@ export default function EventPublic() {
                             </Badge>
                           </div>
 
-                          <Link href={`/register?eventId=${event.id}&surgeonId=${es.surgeonId}`}>
+                          <Link href={getBookingHref(es.surgeonId)}>
                             <Button className="w-full md:w-auto">Book Consultation</Button>
                           </Link>
                         </div>

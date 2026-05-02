@@ -41,6 +41,7 @@ import EventPublic from "@/pages/event-public";
 import Register from "@/pages/register";
 import CustomerPortal from "@/pages/portal/index";
 import QuestionnaireFormPage from "@/pages/portal/questionnaire";
+import BookingPage from "@/pages/booking";
 
 const queryClient = new QueryClient();
 
@@ -76,9 +77,16 @@ const clerkAppearance = {
 };
 
 function SignInPage() {
+  const params = new URLSearchParams(window.location.search);
+  const redirectUrl = params.get("redirect_url") ?? undefined;
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
-      <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+      <SignIn
+        routing="path"
+        path={`${basePath}/sign-in`}
+        signUpUrl={`${basePath}/sign-up`}
+        forceRedirectUrl={redirectUrl}
+      />
     </div>
   );
 }
@@ -232,6 +240,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
           <Route path="/events" component={EventsPublicList} />
+          <Route path="/events/:id/book/:surgeonId" component={BookingPage} />
           <Route path="/events/:id" component={EventPublic} />
           <Route path="/register" component={Register} />
           <Route path="/admin/*" component={AdminRouter} />

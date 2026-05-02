@@ -323,6 +323,7 @@ export async function sendStatusChangeNotification(
   data: AppointmentEmailData,
   newStatus: string,
   recipientType: "customer" | "surgeon",
+  notes?: string | null,
 ): Promise<void> {
   const client = getClient();
   if (!client) return;
@@ -330,10 +331,23 @@ export async function sendStatusChangeNotification(
   const copy = STATUS_COPY[newStatus];
   if (!copy) return;
 
+  const baseUrl = process.env.APP_URL ?? "";
   const toEmail = recipientType === "customer" ? data.customerEmail : data.surgeonEmail;
   const toName = recipientType === "customer" ? data.customerName : data.surgeonName;
   const otherPartyLabel = recipientType === "customer" ? "Surgeon" : "Patient";
   const otherPartyName = recipientType === "customer" ? data.surgeonName : data.customerName;
+  const portalHref = recipientType === "customer" ? `${baseUrl}/portal` : `${baseUrl}/surgeon`;
+  const portalLabel = recipientType === "customer" ? "Open My Portal" : "Open Surgeon Portal";
+
+  const reasonRow =
+    newStatus === "cancelled" && notes
+      ? `<div class="card-row"><span class="label">Reason</span><span class="value">${notes}</span></div>`
+      : "";
+
+  const rebookNote =
+    newStatus === "cancelled" && recipientType === "customer"
+      ? `<p>If you wish to rebook, please visit your patient portal or contact us directly.</p>`
+      : "";
 
   const html = emailWrapper(`
     <h2>${copy.headline}</h2>
@@ -341,10 +355,14 @@ export async function sendStatusChangeNotification(
     <div class="card">
       <div class="card-row"><span class="label">${otherPartyLabel}</span><span class="value">${otherPartyName}</span></div>
       <div class="card-row"><span class="label">Event</span><span class="value">${data.eventName}</span></div>
+      ${data.eventVenue ? `<div class="card-row"><span class="label">Venue</span><span class="value">${data.eventVenue}</span></div>` : ""}
       <div class="card-row"><span class="label">Date &amp; Time</span><span class="value">${formatDateTime(data.startTime)}</span></div>
+      ${data.slotMinutes ? `<div class="card-row"><span class="label">Duration</span><span class="value">${data.slotMinutes} minutes</span></div>` : ""}
+      ${reasonRow}
       <div class="card-row"><span class="label">Status</span><span class="value"><span class="badge ${copy.badgeClass}">${newStatus.replace("_", " ")}</span></span></div>
     </div>
-    ${recipientType === "customer" ? `<a href="${process.env.APP_URL ?? "#"}/portal" class="btn">Open My Portal</a>` : `<a href="${process.env.APP_URL ?? "#"}/surgeon" class="btn">Open Surgeon Portal</a>`}
+    ${rebookNote}
+    <a href="${portalHref}" class="btn">${portalLabel}</a>
   `);
 
   try {

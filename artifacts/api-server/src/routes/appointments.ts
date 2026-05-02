@@ -165,8 +165,9 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
       const statusChanged =
         parsed.data.status && oldAppt && parsed.data.status !== oldAppt.status;
       if (statusChanged) {
-        void sendStatusChangeNotification(emailData, parsed.data.status!, "customer");
-        void sendStatusChangeNotification(emailData, parsed.data.status!, "surgeon");
+        const notesForEmail = parsed.data.notes ?? appt.notes ?? null;
+        void sendStatusChangeNotification(emailData, parsed.data.status!, "customer", notesForEmail);
+        void sendStatusChangeNotification(emailData, parsed.data.status!, "surgeon", notesForEmail);
       }
     }
   }

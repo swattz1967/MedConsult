@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams } from "wouter";
-import { useGetCustomer, useUpdateCustomer, getGetCustomerQueryKey, useListAppointments, useSendDeclarationReminder } from "@workspace/api-client-react";
+import { useGetCustomer, useUpdateCustomer, getGetCustomerQueryKey, useListAppointments, useSendDeclarationReminder, type Appointment } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,12 +18,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle2, Clock, User, Ruler, Scale, Activity, ShieldCheck, Calendar, AlertTriangle, Mail, Plus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, User, Ruler, Scale, Activity, ShieldCheck, Calendar, AlertTriangle, Mail, Plus, CalendarClock } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BookAppointmentDialog } from "@/components/admin/book-appointment-dialog";
+import { RescheduleAppointmentDialog } from "@/components/admin/reschedule-appointment-dialog";
 
 const CONSENT_CLAUSES = [
   "Accuracy of Information",
@@ -47,6 +48,7 @@ export default function CustomerDetail() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [bookDialogOpen, setBookDialogOpen] = useState(false);
+  const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null);
 
   const { data: customer, isLoading } = useGetCustomer(customerId);
   const { data: appointments } = useListAppointments({ customerId });
@@ -371,43 +373,113 @@ export default function CustomerDetail() {
         </CardContent>
       </Card>
 
-      {/* Appointments summary */}
-      {appointments && appointments.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
+      {/* Appointments */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <Calendar className="h-4 w-4 text-primary" /> Appointments
+              {appointments && appointments.length > 0 && (
+                <span className="text-xs font-normal text-muted-foreground">
+                  ({appointments.length})
+                </span>
+              )}
             </CardTitle>
-          </CardHeader>
-          <CardContent>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 h-8 text-xs"
+              onClick={() => setBookDialogOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" /> Book New
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!appointments || appointments.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground text-sm">
+              No appointments yet.
+            </div>
+          ) : (
             <div className="rounded-lg border divide-y">
-              {appointments.slice(0, 5).map((appt) => (
-                <div key={appt.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                  <div className="space-y-0.5">
-                    <div className="font-medium">
-                      {format(new Date(appt.startTime), "d MMM yyyy")}
+              {appointments.map((appt) => {
+                const canReschedule = appt.status === "scheduled";
+                return (
+                  <div
+                    key={appt.id}
+                    className="flex items-center justify-between px-4 py-3 text-sm gap-4"
+                  >
+                    {/* Left: date + event + surgeon */}
+                    <div className="min-w-0 space-y-0.5 flex-1">
+                      <div className="font-medium">
+                        {format(new Date(appt.startTime), "d MMM yyyy")}
+                        <span className="text-muted-foreground font-normal ml-1.5">
+                          {format(new Date(appt.startTime), "h:mm a")}
+                        </span>
+                        {appt.slotMinutes && (
+                          <span className="text-muted-foreground font-normal ml-1">
+                            · {appt.slotMinutes} min
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {appt.event?.name ?? "—"}
+                        {appt.surgeon && (
+                          <span className="ml-1.5">
+                            · {appt.surgeon.firstName} {appt.surgeon.lastName}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {format(new Date(appt.startTime), "h:mm a")}
+
+                    {/* Right: status badge + reschedule button */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "capitalize text-xs",
+                          appt.status === "scheduled" &&
+                            "text-green-700 border-green-300 bg-green-50",
+                          appt.status === "cancelled" &&
+                            "text-red-700 border-red-300 bg-red-50",
+                          appt.status === "completed" &&
+                            "text-blue-700 border-blue-300 bg-blue-50",
+                          appt.status === "no_show" &&
+                            "text-orange-700 border-orange-300 bg-orange-50",
+                        )}
+                      >
+                        {appt.status.replace("_", " ")}
+                      </Badge>
+                      {canReschedule && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                          onClick={() => setRescheduleTarget(appt)}
+                        >
+                          <CalendarClock className="h-3.5 w-3.5" />
+                          Reschedule
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "capitalize text-xs",
-                      appt.status === "scheduled" && "text-amber-700 border-amber-300 bg-amber-50",
-                      appt.status === "cancelled" && "text-red-700 border-red-300 bg-red-50",
-                      appt.status === "completed" && "text-blue-700 border-blue-300 bg-blue-50",
-                      appt.status === "no_show" && "text-orange-700 border-orange-300 bg-orange-50",
-                    )}
-                  >
-                    {appt.status}
-                  </Badge>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Reschedule dialog */}
+      {rescheduleTarget && (
+        <RescheduleAppointmentDialog
+          open={!!rescheduleTarget}
+          onOpenChange={(open) => { if (!open) setRescheduleTarget(null); }}
+          appointment={rescheduleTarget}
+          customerId={customerId}
+          customerEmail={customer.email}
+          customerName={`${customer.firstName} ${customer.lastName}`}
+        />
       )}
     </div>
   );

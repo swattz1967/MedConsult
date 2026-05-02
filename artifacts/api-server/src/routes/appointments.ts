@@ -12,6 +12,7 @@ import {
 import {
   sendBookingConfirmation,
   sendNewBookingAlert,
+  sendRescheduleNotification,
   sendStatusChangeNotification,
 } from "../lib/email";
 
@@ -132,9 +133,7 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
 
   res.json({ ...appt, customer, surgeon, event });
 
-  // Fire status-change emails if status actually changed
-  const statusChanged = parsed.data.status && oldAppt && parsed.data.status !== oldAppt.status;
-  if (statusChanged && customer?.email && surgeon?.email && event) {
+  if (customer?.email && surgeon?.email && event) {
     const emailData = {
       appointmentId: appt.id,
       startTime: appt.startTime,
@@ -148,8 +147,28 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
       eventName: event.name,
       eventVenue: event.venue,
     };
-    void sendStatusChangeNotification(emailData, parsed.data.status!, "customer");
-    void sendStatusChangeNotification(emailData, parsed.data.status!, "surgeon");
+
+    // Fire reschedule emails if startTime changed
+    const timeChanged =
+      oldAppt && parsed.data.startTime && parsed.data.startTime !== oldAppt.startTime;
+    if (timeChanged) {
+      void sendRescheduleNotification(
+        { ...emailData, oldStartTime: oldAppt!.startTime },
+        "customer",
+      );
+      void sendRescheduleNotification(
+        { ...emailData, oldStartTime: oldAppt!.startTime },
+        "surgeon",
+      );
+    } else {
+      // Fire status-change emails if status changed (but not a reschedule)
+      const statusChanged =
+        parsed.data.status && oldAppt && parsed.data.status !== oldAppt.status;
+      if (statusChanged) {
+        void sendStatusChangeNotification(emailData, parsed.data.status!, "customer");
+        void sendStatusChangeNotification(emailData, parsed.data.status!, "surgeon");
+      }
+    }
   }
 });
 

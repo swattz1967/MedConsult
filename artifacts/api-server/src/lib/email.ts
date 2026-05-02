@@ -232,7 +232,65 @@ export async function sendDeclarationReminder(data: DeclarationReminderData): Pr
   }
 }
 
-// ─── 4. Status update notification → customer ────────────────────────────────
+// ─── 4. Reschedule notification → customer + surgeon ─────────────────────────
+
+interface RescheduleEmailData extends AppointmentEmailData {
+  oldStartTime: string;
+}
+
+export async function sendRescheduleNotification(
+  data: RescheduleEmailData,
+  recipientType: "customer" | "surgeon",
+): Promise<void> {
+  const client = getClient();
+  if (!client) return;
+
+  const baseUrl = process.env.APP_URL ?? "";
+  const isCustomer = recipientType === "customer";
+  const toEmail = isCustomer ? data.customerEmail : data.surgeonEmail;
+  const toName = isCustomer ? data.customerName : data.surgeonName;
+  const portalHref = isCustomer ? `${baseUrl}/portal` : `${baseUrl}/surgeon`;
+  const portalLabel = isCustomer ? "Open My Portal" : "Open Surgeon Portal";
+
+  const html = emailWrapper(`
+    <h2>Your consultation has been rescheduled</h2>
+    <p>Hi ${toName}, your upcoming consultation has been moved to a new date and time.</p>
+    <div class="card">
+      <div class="card-row">
+        <span class="label">Previous Date &amp; Time</span>
+        <span class="value" style="text-decoration:line-through;color:#9ca3af;">${formatDateTime(data.oldStartTime)}</span>
+      </div>
+      <div class="card-row">
+        <span class="label">New Date &amp; Time</span>
+        <span class="value" style="color:#145c4b;font-weight:700;">${formatDateTime(data.startTime)}</span>
+      </div>
+      <div class="card-row"><span class="label">${isCustomer ? "Surgeon" : "Patient"}</span><span class="value">${isCustomer ? data.surgeonName : data.customerName}</span></div>
+      <div class="card-row"><span class="label">Event</span><span class="value">${data.eventName}</span></div>
+      ${data.eventVenue ? `<div class="card-row"><span class="label">Venue</span><span class="value">${data.eventVenue}</span></div>` : ""}
+      <div class="card-row"><span class="label">Duration</span><span class="value">${data.slotMinutes ?? 30} minutes</span></div>
+      <div class="card-row"><span class="label">Status</span><span class="value"><span class="badge badge-blue">Rescheduled</span></span></div>
+    </div>
+    ${isCustomer ? `<p>Please make sure your calendar is updated. Your declaration and pre-consultation form remain valid.</p>` : `<p>Please update your schedule accordingly.</p>`}
+    <a href="${portalHref}" class="btn">${portalLabel}</a>
+  `);
+
+  try {
+    await client.emails.send({
+      from: FROM_ADDRESS,
+      to: toEmail,
+      subject: `Consultation rescheduled — ${data.eventName} now on ${format(new Date(data.startTime), "MMM d, yyyy")}`,
+      html,
+    });
+    logger.info(
+      { appointmentId: data.appointmentId, to: toEmail, newTime: data.startTime },
+      "Reschedule notification sent",
+    );
+  } catch (err) {
+    logger.error({ err, appointmentId: data.appointmentId }, "Failed to send reschedule notification");
+  }
+}
+
+// ─── 5. Status update notification → customer ────────────────────────────────
 
 const STATUS_COPY: Record<string, { subject: string; headline: string; body: string; badgeClass: string }> = {
   cancelled: {

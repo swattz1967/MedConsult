@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle2, Clock, User, Ruler, Scale, Activity, ShieldCheck, Calendar, AlertTriangle, Mail, Plus, CalendarClock, XCircle, UserX, CheckCheck } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, User, Ruler, Scale, Activity, ShieldCheck, Calendar, AlertTriangle, Mail, Plus, CalendarClock, XCircle, UserX, CheckCheck, StickyNote } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -414,10 +414,9 @@ export default function CustomerDetail() {
                 const isPast = new Date(appt.startTime) < now;
                 const canMarkNoShow = canReschedule && isPast;
                 return (
-                  <div
-                    key={appt.id}
-                    className="flex items-center justify-between px-4 py-3 text-sm gap-4"
-                  >
+                  <div key={appt.id} className="text-sm">
+                    {/* Main row */}
+                    <div className="flex items-center justify-between px-4 py-3 gap-4">
                     {/* Left: date + event + surgeon */}
                     <div className="min-w-0 space-y-0.5 flex-1">
                       <div className="font-medium">
@@ -504,6 +503,27 @@ export default function CustomerDetail() {
                         </Button>
                       )}
                     </div>
+                    </div>{/* end main row */}
+
+                    {/* Notes sub-row */}
+                    {appt.notes && appt.notes.trim() && (
+                      <div className="flex items-start gap-2 px-4 pb-3 -mt-1">
+                        <StickyNote className="h-3.5 w-3.5 text-muted-foreground/60 mt-0.5 shrink-0" />
+                        <p
+                          className={cn(
+                            "text-xs leading-relaxed",
+                            appt.status === "cancelled"
+                              ? "text-red-600/80"
+                              : appt.status === "no_show"
+                                ? "text-orange-600/80"
+                                : "text-muted-foreground",
+                          )}
+                          title={appt.notes}
+                        >
+                          {appt.notes}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 );
               })}

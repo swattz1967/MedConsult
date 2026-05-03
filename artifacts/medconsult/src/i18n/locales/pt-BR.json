@@ -204,6 +204,11 @@
     "searchSection": "Seção",
     "searchNoResults": "Nenhum resultado encontrado para",
     "searchTryAnother": "Tente outra palavra-chave ou navegue por perfil usando as abas acima.",
+    "feedbackQuestion": "Esta seção foi útil?",
+    "feedbackYes": "Sim, foi útil",
+    "feedbackNo": "Precisa melhorar",
+    "feedbackThanks": "Obrigado pelo seu feedback!",
+    "feedbackChange": "Alterar",
     "tabs": {
       "appOwner": "Proprietário / Administrador",
       "bookingAdmin": "Administrador de Reservas",

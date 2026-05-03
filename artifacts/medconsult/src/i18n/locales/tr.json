@@ -204,6 +204,11 @@
     "searchSection": "Bölüm",
     "searchNoResults": "Sonuç bulunamadı:",
     "searchTryAnother": "Farklı bir anahtar kelime deneyin veya yukarıdaki sekmeleri kullanarak role göre göz atın.",
+    "feedbackQuestion": "Bu bölüm yardımcı oldu mu?",
+    "feedbackYes": "Evet, yardımcı oldu",
+    "feedbackNo": "Geliştirilmeli",
+    "feedbackThanks": "Geri bildiriminiz için teşekkürler!",
+    "feedbackChange": "Değiştir",
     "tabs": {
       "appOwner": "Uygulama Sahibi / Yönetici",
       "bookingAdmin": "Rezervasyon Yöneticisi",

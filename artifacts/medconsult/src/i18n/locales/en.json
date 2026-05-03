@@ -204,6 +204,11 @@
     "searchSection": "Section",
     "searchNoResults": "No results found for",
     "searchTryAnother": "Try a different keyword or browse by role using the tabs above.",
+    "feedbackQuestion": "Was this section helpful?",
+    "feedbackYes": "Yes, helpful",
+    "feedbackNo": "Needs improvement",
+    "feedbackThanks": "Thanks for your feedback!",
+    "feedbackChange": "Change",
     "tabs": {
       "appOwner": "App Owner / Administrator",
       "bookingAdmin": "Booking Administrator",

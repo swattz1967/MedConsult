@@ -20,6 +20,9 @@ import {
   Search,
   X,
   ArrowUp,
+  ThumbsUp,
+  ThumbsDown,
+  CheckCircle2,
 } from "lucide-react";
 
 // ─── Guide structure ──────────────────────────────────────────────────────────
@@ -302,6 +305,61 @@ function HighlightText({ text, query }: { text: string; query: string }) {
   );
 }
 
+// ─── Feedback widget ──────────────────────────────────────────────────────────
+
+function FeedbackWidget({ role }: { role: RoleKey }) {
+  const { t } = useTranslation();
+  const storageKey = `medconsult-guide-feedback-${role}`;
+
+  const [rating, setRating] = useState<"up" | "down" | null>(
+    () => localStorage.getItem(storageKey) as "up" | "down" | null,
+  );
+
+  const handleRate = (val: "up" | "down") => {
+    setRating(val);
+    localStorage.setItem(storageKey, val);
+  };
+
+  return (
+    <div className="guide-no-print mt-8 pt-6 border-t border-dashed flex flex-col items-center gap-3">
+      {rating ? (
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+          {t("guide.feedbackThanks")}
+          <button
+            onClick={() => { setRating(null); localStorage.removeItem(storageKey); }}
+            className="ml-1 text-xs text-gray-400 underline underline-offset-2 hover:text-gray-600 transition-colors"
+          >
+            {t("guide.feedbackChange")}
+          </button>
+        </div>
+      ) : (
+        <>
+          <p className="text-sm text-gray-500 font-medium">
+            {t("guide.feedbackQuestion")}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleRate("up")}
+              className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 py-1.5 text-sm text-gray-600 shadow-sm hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition-all"
+            >
+              <ThumbsUp className="h-3.5 w-3.5" />
+              {t("guide.feedbackYes")}
+            </button>
+            <button
+              onClick={() => handleRate("down")}
+              className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 py-1.5 text-sm text-gray-600 shadow-sm hover:border-rose-400 hover:bg-rose-50 hover:text-rose-700 transition-all"
+            >
+              <ThumbsDown className="h-3.5 w-3.5" />
+              {t("guide.feedbackNo")}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Role content ─────────────────────────────────────────────────────────────
 
 function RoleContent({ role, icon: Icon, sections }: RoleDef) {
@@ -345,6 +403,8 @@ function RoleContent({ role, icon: Icon, sections }: RoleDef) {
           </div>
         ))}
       </div>
+
+      <FeedbackWidget role={role} />
     </div>
   );
 }

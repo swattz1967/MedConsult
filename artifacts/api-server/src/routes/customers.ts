@@ -133,11 +133,15 @@ router.post("/customers/:id/send-declaration-reminder", async (req, res): Promis
     return;
   }
   try {
-    await sendDeclarationReminder({
-      customerId: customer.id,
-      customerName: `${customer.firstName} ${customer.lastName}`,
-      customerEmail: customer.email,
-    });
+    const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, customer.agencyId));
+    const agencyBranding = agency
+      ? { name: agency.name, color: agency.primaryColor ?? "#145c4b", logoUrl: agency.logoUrl, email: agency.email }
+      : undefined;
+
+    await sendDeclarationReminder(
+      { customerId: customer.id, customerName: `${customer.firstName} ${customer.lastName}`, customerEmail: customer.email },
+      agencyBranding,
+    );
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: "Failed to send reminder email" });

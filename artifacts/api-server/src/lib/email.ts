@@ -324,11 +324,12 @@ interface DeclarationReminderData {
   customerEmail: string;
 }
 
-export async function sendDeclarationReminder(data: DeclarationReminderData): Promise<void> {
+export async function sendDeclarationReminder(data: DeclarationReminderData, agency?: AgencyBranding): Promise<void> {
   const client = getClient();
   if (!client) return;
 
   const portalUrl = `${process.env.APP_URL ?? ""}/portal/declaration`;
+  const color = agency?.color ?? DEFAULT_BRANDING.color;
 
   const html = emailWrapper(`
     <h2>Action required: Please sign your patient declaration</h2>
@@ -340,13 +341,13 @@ export async function sendDeclarationReminder(data: DeclarationReminderData): Pr
       <div class="card-row"><span class="label">Status</span><span class="value"><span class="badge badge-red">Unsigned</span></span></div>
     </div>
     <p>Click the button below to sign your declaration. You will be asked to review 6 short consent clauses and add your digital signature.</p>
-    <a href="${portalUrl}" class="btn">Sign My Declaration</a>
+    <a href="${portalUrl}" style="display:inline-block;margin-top:8px;padding:12px 28px;background:${color};color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Sign My Declaration</a>
     <p style="margin-top:20px;font-size:12px;color:#9ca3af;">If you have already signed, you can ignore this email.</p>
-  `);
+  `, agency);
 
   try {
     await client.emails.send({
-      from: DEFAULT_FROM,
+      from: fromAddress(agency),
       to: data.customerEmail,
       subject: "Action required: Sign your patient declaration before your consultation",
       html,

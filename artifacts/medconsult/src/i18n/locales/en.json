@@ -14,7 +14,8 @@
     "userGuide": "User Guide",
     "technicalRef": "Technical Reference",
     "urs": "User Requirements",
-    "designDoc": "Design Document"
+    "designDoc": "Design Document",
+    "testPlan": "Test Plan"
   },
   "common": {
     "save": "Save",

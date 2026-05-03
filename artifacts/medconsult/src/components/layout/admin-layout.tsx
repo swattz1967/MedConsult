@@ -19,6 +19,7 @@ import {
   Code2,
   CheckSquare,
   Layers,
+  FlaskConical,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem,
@@ -61,6 +62,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { labelKey: "nav.technicalRef",   href: "/admin/technical-reference", icon: Code2 },
     { labelKey: "nav.urs",            href: "/admin/urs",                 icon: CheckSquare },
     { labelKey: "nav.designDoc",      href: "/admin/design-document",     icon: Layers },
+    { labelKey: "nav.testPlan",       href: "/admin/test-plan",           icon: FlaskConical },
   ];
 
   const NavItems = () => (

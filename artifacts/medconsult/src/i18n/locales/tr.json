@@ -14,7 +14,8 @@
     "userGuide": "Kullanıcı Kılavuzu",
     "technicalRef": "Teknik Referans",
     "urs": "Kullanıcı Gereksinimleri",
-    "designDoc": "Tasarım Belgesi"
+    "designDoc": "Tasarım Belgesi",
+    "testPlan": "Test Planı"
   },
   "common": {
     "save": "Kaydet",

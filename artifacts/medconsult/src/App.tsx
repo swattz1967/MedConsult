@@ -39,6 +39,7 @@ import AdminSettings from "@/pages/admin/settings";
 import TechnicalReference from "@/pages/admin/technical-reference";
 import UserRequirementSpec from "@/pages/admin/urs";
 import DesignDocument from "@/pages/admin/design-document";
+import TestPlan from "@/pages/admin/test-plan";
 import SurgeonDashboard from "@/pages/surgeon/dashboard";
 import SurgeonAppointments from "@/pages/surgeon/appointments";
 import ConsultationRoom from "@/pages/surgeon/consultation-room";
@@ -204,6 +205,7 @@ function AdminRouter() {
         <Route path="/admin/technical-reference" component={TechnicalReference} />
         <Route path="/admin/urs" component={UserRequirementSpec} />
         <Route path="/admin/design-document" component={DesignDocument} />
+        <Route path="/admin/test-plan" component={TestPlan} />
         <Route component={NotFound} />
       </Switch>
     </AdminLayout>

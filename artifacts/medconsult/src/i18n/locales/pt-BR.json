@@ -14,7 +14,8 @@
     "userGuide": "Guia do Usuário",
     "technicalRef": "Referência Técnica",
     "urs": "Requisitos do Usuário",
-    "designDoc": "Documento de Design"
+    "designDoc": "Documento de Design",
+    "testPlan": "Plano de Testes"
   },
   "common": {
     "save": "Salvar",

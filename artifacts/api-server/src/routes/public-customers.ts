@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, customersTable, agenciesTable } from "@workspace/db";
 import { z } from "zod";
 import { sendRegistrationWelcome } from "../lib/email";
+import { dispatchWebhook } from "../lib/webhook";
 
 const router: IRouter = Router();
 
@@ -82,8 +83,8 @@ router.post("/public/customers", async (req, res): Promise<void> => {
 
   res.status(201).json(customer);
 
-  if (customer.email) {
-    (async () => {
+  (async () => {
+    if (customer.email) {
       await sendRegistrationWelcome({
         customerId: customer.id,
         customerName: `${customer.firstName} ${customer.lastName}`,
@@ -96,8 +97,24 @@ router.post("/public/customers", async (req, res): Promise<void> => {
           email: agency.email,
         },
       });
-    })().catch(() => {});
-  }
+    }
+
+    await dispatchWebhook(agency.webhookUrl, agency.webhookSecret, {
+      event: "customer.registered",
+      timestamp: new Date().toISOString(),
+      agencyId: agency.id,
+      data: {
+        customerId: customer.id,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        email: customer.email,
+        phone: customer.phone,
+        nationality: customer.nationality,
+        medicalServicesInterest: customer.medicalServicesInterest,
+        createdAt: customer.createdAt,
+      },
+    });
+  })().catch(() => {});
 });
 
 export default router;

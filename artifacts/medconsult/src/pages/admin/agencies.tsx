@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
-import { useListAgencies, useCreateAgency, useUpdateAgency, getListAgenciesQueryKey, useGetEmailStats, useRegenerateAgencyApiKey } from "@workspace/api-client-react";
+import { useListAgencies, useCreateAgency, useUpdateAgency, getListAgenciesQueryKey, useGetEmailStats, useRegenerateAgencyApiKey, useRegenerateAgencyWebhookSecret } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Plus, CheckCircle2, AlertTriangle, XCircle, Upload, X, ImageIcon, Loader2, Send, FlaskConical, ExternalLink, Search, RefreshCw, Copy, Eye, EyeOff, Key } from "lucide-react";
+import { Plus, CheckCircle2, AlertTriangle, XCircle, Upload, X, ImageIcon, Loader2, Send, FlaskConical, ExternalLink, Search, RefreshCw, Copy, Eye, EyeOff, Key, Webhook, Link2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -507,6 +507,11 @@ export default function AgenciesList() {
   const [agencyApiKey, setAgencyApiKey] = useState<string | null>(null);
   const [keyVisible, setKeyVisible] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [webhookUrlDirty, setWebhookUrlDirty] = useState(false);
+  const [agencyWebhookSecret, setAgencyWebhookSecret] = useState<string | null>(null);
+  const [webhookSecretVisible, setWebhookSecretVisible] = useState(false);
+  const [webhookSecretCopied, setWebhookSecretCopied] = useState(false);
 
   const filteredAgencies = query.trim()
     ? (agencies ?? []).filter((a) => {
@@ -525,6 +530,7 @@ export default function AgenciesList() {
   const createAgency = useCreateAgency();
   const updateAgency = useUpdateAgency();
   const regenerateKey = useRegenerateAgencyApiKey();
+  const regenerateWebhookSecret = useRegenerateAgencyWebhookSecret();
 
   const form = useForm<AgencyFormValues>({
     resolver: zodResolver(agencySchema),
@@ -565,6 +571,11 @@ export default function AgenciesList() {
     setAgencyApiKey(agency.apiKey ?? null);
     setKeyVisible(false);
     setKeyCopied(false);
+    setWebhookUrl(agency.webhookUrl ?? "");
+    setWebhookUrlDirty(false);
+    setAgencyWebhookSecret(agency.webhookSecret ?? null);
+    setWebhookSecretVisible(false);
+    setWebhookSecretCopied(false);
     form.reset({
       name: agency.name || "",
       email: agency.email || "",
@@ -598,6 +609,43 @@ export default function AgenciesList() {
       },
       onError: () => {
         toast({ title: "Failed to regenerate key", variant: "destructive" });
+      },
+    });
+  };
+
+  const handleSaveWebhookUrl = () => {
+    if (!editingId) return;
+    updateAgency.mutate({ id: editingId, data: { webhookUrl: webhookUrl || null } as any }, {
+      onSuccess: () => {
+        setWebhookUrlDirty(false);
+        queryClient.invalidateQueries({ queryKey: getListAgenciesQueryKey() });
+        toast({ title: "Webhook URL saved" });
+      },
+      onError: () => {
+        toast({ title: "Failed to save webhook URL", variant: "destructive" });
+      },
+    });
+  };
+
+  const handleCopyWebhookSecret = () => {
+    if (!agencyWebhookSecret) return;
+    navigator.clipboard.writeText(agencyWebhookSecret).then(() => {
+      setWebhookSecretCopied(true);
+      setTimeout(() => setWebhookSecretCopied(false), 2000);
+    });
+  };
+
+  const handleRegenerateWebhookSecret = () => {
+    if (!editingId) return;
+    regenerateWebhookSecret.mutate({ id: editingId }, {
+      onSuccess: (data) => {
+        setAgencyWebhookSecret(data.webhookSecret);
+        setWebhookSecretVisible(true);
+        queryClient.invalidateQueries({ queryKey: getListAgenciesQueryKey() });
+        toast({ title: "Webhook secret regenerated", description: "Copy the new secret — it won't be shown again once you close this dialog." });
+      },
+      onError: () => {
+        toast({ title: "Failed to regenerate webhook secret", variant: "destructive" });
       },
     });
   };
@@ -849,6 +897,105 @@ export default function AgenciesList() {
   -d '{"firstName":"Jane","lastName":"Doe","email":"jane@example.com"}'`}</pre>
                         </div>
                       )}
+
+                      {/* ── Webhook section ── */}
+                      <div className="border-t pt-3 space-y-3 mt-1">
+                        <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                          <Webhook className="h-3.5 w-3.5" />
+                          Outbound Webhook
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          MedConsult will POST real-time event notifications to your URL whenever a customer registers or an appointment changes status.
+                        </p>
+
+                        {/* Webhook URL */}
+                        <div className="space-y-1.5">
+                          <Label className="text-sm font-medium flex items-center gap-1.5">
+                            <Link2 className="h-3.5 w-3.5" /> Webhook URL
+                          </Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="text"
+                              placeholder="https://your-booking-app.com/webhooks/medconsult"
+                              value={webhookUrl}
+                              onChange={(e) => { setWebhookUrl(e.target.value); setWebhookUrlDirty(true); }}
+                              className="flex-1 font-mono text-xs"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="shrink-0"
+                              onClick={handleSaveWebhookUrl}
+                              disabled={!webhookUrlDirty || updateAgency.isPending}
+                            >
+                              {updateAgency.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Webhook signing secret */}
+                        {webhookUrl && (
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Signing Secret</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Verify incoming webhook authenticity by checking the{" "}
+                              <code className="bg-muted px-1 py-0.5 rounded">X-Webhook-Signature</code> header
+                              (HMAC-SHA256 of the raw body using this secret).
+                            </p>
+                            {agencyWebhookSecret ? (
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  readOnly
+                                  value={webhookSecretVisible ? agencyWebhookSecret : "•".repeat(32)}
+                                  className="flex-1 font-mono text-xs"
+                                />
+                                <Button type="button" variant="outline" size="sm" className="h-9 w-9 p-0 shrink-0"
+                                  onClick={() => setWebhookSecretVisible(!webhookSecretVisible)}
+                                  title={webhookSecretVisible ? "Hide secret" : "Reveal secret"}
+                                >
+                                  {webhookSecretVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </Button>
+                                <Button type="button" variant="outline" size="sm" className="h-9 w-9 p-0 shrink-0"
+                                  onClick={handleCopyWebhookSecret}
+                                  title="Copy secret"
+                                >
+                                  {webhookSecretCopied ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2.5 text-sm text-muted-foreground">
+                                <Key className="h-4 w-4 shrink-0" />
+                                <span>No signing secret yet. Generate one to enable signature verification.</span>
+                              </div>
+                            )}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
+                              onClick={handleRegenerateWebhookSecret}
+                              disabled={regenerateWebhookSecret.isPending}
+                            >
+                              {regenerateWebhookSecret.isPending
+                                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
+                                : <><RefreshCw className="h-3.5 w-3.5" /> {agencyWebhookSecret ? "Rotate Secret" : "Generate Secret"}</>
+                              }
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Events reference */}
+                        <div className="rounded-md bg-muted/60 border p-3 space-y-1.5 text-xs text-muted-foreground">
+                          <p className="font-semibold text-foreground">Events delivered</p>
+                          <ul className="space-y-0.5 font-mono">
+                            <li><span className="text-emerald-600">customer.registered</span> — new customer via public API</li>
+                            <li><span className="text-blue-600">appointment.created</span> — new booking made</li>
+                            <li><span className="text-amber-600">appointment.status_changed</span> — confirmed / cancelled / completed</li>
+                            <li><span className="text-violet-600">appointment.rescheduled</span> — appointment time changed</li>
+                          </ul>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}

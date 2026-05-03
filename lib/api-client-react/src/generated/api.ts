@@ -20,6 +20,7 @@ import type {
   Agency,
   AgencyApiKeyResponse,
   AgencyEmailStats,
+  AgencyWebhookSecretResponse,
   Appointment,
   ConfigItem,
   ConsultationMedia,
@@ -585,6 +586,93 @@ export const useDeleteAgency = <
   TContext
 > => {
   return useMutation(getDeleteAgencyMutationOptions(options));
+};
+
+/**
+ * @summary Regenerate the agency's webhook signing secret
+ */
+export const getRegenerateAgencyWebhookSecretUrl = (id: number) => {
+  return `/api/agencies/${id}/regenerate-webhook-secret`;
+};
+
+export const regenerateAgencyWebhookSecret = async (
+  id: number,
+  options?: RequestInit,
+): Promise<AgencyWebhookSecretResponse> => {
+  return customFetch<AgencyWebhookSecretResponse>(
+    getRegenerateAgencyWebhookSecretUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getRegenerateAgencyWebhookSecretMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateAgencyWebhookSecret>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof regenerateAgencyWebhookSecret>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["regenerateAgencyWebhookSecret"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof regenerateAgencyWebhookSecret>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return regenerateAgencyWebhookSecret(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegenerateAgencyWebhookSecretMutationResult = NonNullable<
+  Awaited<ReturnType<typeof regenerateAgencyWebhookSecret>>
+>;
+
+export type RegenerateAgencyWebhookSecretMutationError = ErrorType<void>;
+
+/**
+ * @summary Regenerate the agency's webhook signing secret
+ */
+export const useRegenerateAgencyWebhookSecret = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateAgencyWebhookSecret>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof regenerateAgencyWebhookSecret>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRegenerateAgencyWebhookSecretMutationOptions(options));
 };
 
 /**

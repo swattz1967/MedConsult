@@ -140,6 +140,27 @@ paths:
         "204":
           description: Deleted
 
+  /agencies/{id}/regenerate-webhook-secret:
+    post:
+      operationId: regenerateAgencyWebhookSecret
+      tags: [agencies]
+      summary: Regenerate the agency's webhook signing secret
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: New webhook secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgencyWebhookSecretResponse"
+        "404":
+          description: Not found
+
   /agencies/{id}/regenerate-api-key:
     post:
       operationId: regenerateAgencyApiKey
@@ -1708,6 +1729,10 @@ components:
           default: GBP
         apiKey:
           type: ["string", "null"]
+        webhookUrl:
+          type: ["string", "null"]
+        webhookSecret:
+          type: ["string", "null"]
         createdAt:
           type: string
         updatedAt:
@@ -2823,6 +2848,14 @@ components:
           type: string
       required:
         - apiKey
+
+    AgencyWebhookSecretResponse:
+      type: object
+      properties:
+        webhookSecret:
+          type: string
+      required:
+        - webhookSecret
 
     PublicRegisterCustomerBody:
       type: object

@@ -64,6 +64,25 @@ router.patch("/agencies/:id", async (req, res): Promise<void> => {
   res.json(agency);
 });
 
+router.post("/agencies/:id/regenerate-webhook-secret", async (req, res): Promise<void> => {
+  const params = GetAgencyParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const newSecret = randomBytes(32).toString("hex");
+  const [agency] = await db
+    .update(agenciesTable)
+    .set({ webhookSecret: newSecret })
+    .where(eq(agenciesTable.id, params.data.id))
+    .returning();
+  if (!agency) {
+    res.status(404).json({ error: "Agency not found" });
+    return;
+  }
+  res.json({ webhookSecret: newSecret });
+});
+
 router.post("/agencies/:id/regenerate-api-key", async (req, res): Promise<void> => {
   const params = GetAgencyParams.safeParse(req.params);
   if (!params.success) {

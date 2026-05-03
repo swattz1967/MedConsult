@@ -14,6 +14,8 @@ export const agenciesTable = pgTable("agencies", {
   address: text("address"),
   currency: text("currency").notNull().default("GBP"),
   apiKey: text("api_key"),
+  webhookUrl: text("webhook_url"),
+  webhookSecret: text("webhook_secret"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

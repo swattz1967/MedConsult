@@ -33,6 +33,8 @@ export const ListAgenciesResponseItem = zod.object({
     .enum(["GBP", "EUR", "TRY"])
     .default(listAgenciesResponseCurrencyDefault),
   apiKey: zod.string().nullish(),
+  webhookUrl: zod.string().nullish(),
+  webhookSecret: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -76,6 +78,8 @@ export const GetAgencyResponse = zod.object({
     .enum(["GBP", "EUR", "TRY"])
     .default(getAgencyResponseCurrencyDefault),
   apiKey: zod.string().nullish(),
+  webhookUrl: zod.string().nullish(),
+  webhookSecret: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -115,6 +119,8 @@ export const UpdateAgencyResponse = zod.object({
     .enum(["GBP", "EUR", "TRY"])
     .default(updateAgencyResponseCurrencyDefault),
   apiKey: zod.string().nullish(),
+  webhookUrl: zod.string().nullish(),
+  webhookSecret: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -124,6 +130,17 @@ export const UpdateAgencyResponse = zod.object({
  */
 export const DeleteAgencyParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary Regenerate the agency's webhook signing secret
+ */
+export const RegenerateAgencyWebhookSecretParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const RegenerateAgencyWebhookSecretResponse = zod.object({
+  webhookSecret: zod.string(),
 });
 
 /**

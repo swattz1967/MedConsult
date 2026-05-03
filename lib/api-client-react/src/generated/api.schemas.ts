@@ -38,6 +38,10 @@ export interface Agency {
   currency: AgencyCurrency;
   /** @nullable */
   apiKey?: string | null;
+  /** @nullable */
+  webhookUrl?: string | null;
+  /** @nullable */
+  webhookSecret?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -918,6 +922,10 @@ export interface EmailLogsResponse {
 
 export interface AgencyApiKeyResponse {
   apiKey: string;
+}
+
+export interface AgencyWebhookSecretResponse {
+  webhookSecret: string;
 }
 
 export interface PublicRegisterCustomerBody {

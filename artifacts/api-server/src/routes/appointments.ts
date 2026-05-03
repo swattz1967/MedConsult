@@ -15,6 +15,7 @@ import {
   sendRescheduleNotification,
   sendStatusChangeNotification,
 } from "../lib/email";
+import { dispatchWebhook } from "../lib/webhook";
 
 const router: IRouter = Router();
 
@@ -63,10 +64,11 @@ router.post("/appointments", async (req, res): Promise<void> => {
 
   res.status(201).json({ ...appt, customer, surgeon, event });
 
-  // Fire-and-forget emails — after response sent
-  if (customer?.email && surgeon?.email && event) {
-    (async () => {
-      const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, event.agencyId));
+  // Fire-and-forget emails + webhook — after response sent
+  (async () => {
+    const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, event?.agencyId ?? -1));
+
+    if (customer?.email && surgeon?.email && event) {
       const agencyBranding = agency
         ? { id: agency.id, name: agency.name, color: agency.primaryColor ?? "#145c4b", logoUrl: agency.logoUrl, email: agency.email }
         : undefined;
@@ -87,10 +89,27 @@ router.post("/appointments", async (req, res): Promise<void> => {
 
       await sendBookingConfirmation(emailData, agencyBranding);
       await sendNewBookingAlert(emailData, agencyBranding);
-    })().catch((err) => {
-      req.log.error({ err, appointmentId: appt.id }, "Failed to send booking emails");
+    }
+
+    await dispatchWebhook(agency?.webhookUrl, agency?.webhookSecret, {
+      event: "appointment.created",
+      timestamp: new Date().toISOString(),
+      agencyId: agency?.id ?? appt.id,
+      data: {
+        appointmentId: appt.id,
+        customerId: appt.customerId,
+        surgeonId: appt.surgeonId,
+        eventId: appt.eventId,
+        startTime: appt.startTime,
+        endTime: appt.endTime,
+        status: appt.status,
+        fee: appt.fee,
+        customer: customer ? { id: customer.id, firstName: customer.firstName, lastName: customer.lastName, email: customer.email } : null,
+      },
     });
-  }
+  })().catch((err) => {
+    req.log.error({ err, appointmentId: appt.id }, "Failed to send booking emails/webhook");
+  });
 });
 
 router.get("/appointments/:id", async (req, res): Promise<void> => {
@@ -142,9 +161,13 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
 
   res.json({ ...appt, customer, surgeon, event });
 
-  if (customer?.email && surgeon?.email && event) {
-    (async () => {
-      const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, event.agencyId));
+  (async () => {
+    const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, event?.agencyId ?? -1));
+
+    const timeChanged = oldAppt && parsed.data.startTime && parsed.data.startTime !== oldAppt.startTime;
+    const statusChanged = !timeChanged && parsed.data.status && oldAppt && parsed.data.status !== oldAppt.status;
+
+    if (customer?.email && surgeon?.email && event) {
       const agencyBranding = agency
         ? { id: agency.id, name: agency.name, color: agency.primaryColor ?? "#145c4b", logoUrl: agency.logoUrl, email: agency.email }
         : undefined;
@@ -163,22 +186,45 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
         eventVenue: event.venue,
       };
 
-      const timeChanged = oldAppt && parsed.data.startTime && parsed.data.startTime !== oldAppt.startTime;
       if (timeChanged) {
         await sendRescheduleNotification({ ...emailData, oldStartTime: oldAppt!.startTime }, "customer", agencyBranding);
         await sendRescheduleNotification({ ...emailData, oldStartTime: oldAppt!.startTime }, "surgeon", agencyBranding);
-      } else {
-        const statusChanged = parsed.data.status && oldAppt && parsed.data.status !== oldAppt.status;
-        if (statusChanged) {
-          const notesForEmail = parsed.data.notes ?? appt.notes ?? null;
-          await sendStatusChangeNotification(emailData, parsed.data.status!, "customer", notesForEmail, agencyBranding);
-          await sendStatusChangeNotification(emailData, parsed.data.status!, "surgeon", notesForEmail, agencyBranding);
-        }
+      } else if (statusChanged) {
+        const notesForEmail = parsed.data.notes ?? appt.notes ?? null;
+        await sendStatusChangeNotification(emailData, parsed.data.status!, "customer", notesForEmail, agencyBranding);
+        await sendStatusChangeNotification(emailData, parsed.data.status!, "surgeon", notesForEmail, agencyBranding);
       }
-    })().catch((err) => {
-      req.log.error({ err, appointmentId: appt.id }, "Failed to send appointment update emails");
-    });
-  }
+    }
+
+    const webhookEventType = timeChanged
+      ? "appointment.rescheduled"
+      : statusChanged
+      ? "appointment.status_changed"
+      : null;
+
+    if (webhookEventType) {
+      await dispatchWebhook(agency?.webhookUrl, agency?.webhookSecret, {
+        event: webhookEventType,
+        timestamp: new Date().toISOString(),
+        agencyId: agency?.id ?? appt.id,
+        data: {
+          appointmentId: appt.id,
+          customerId: appt.customerId,
+          surgeonId: appt.surgeonId,
+          eventId: appt.eventId,
+          startTime: appt.startTime,
+          endTime: appt.endTime,
+          status: appt.status,
+          previousStatus: statusChanged ? oldAppt?.status : undefined,
+          previousStartTime: timeChanged ? oldAppt?.startTime : undefined,
+          fee: appt.fee,
+          customer: customer ? { id: customer.id, firstName: customer.firstName, lastName: customer.lastName, email: customer.email } : null,
+        },
+      });
+    }
+  })().catch((err) => {
+    req.log.error({ err, appointmentId: appt.id }, "Failed to send appointment update emails/webhook");
+  });
 });
 
 router.delete("/appointments/:id", async (req, res): Promise<void> => {

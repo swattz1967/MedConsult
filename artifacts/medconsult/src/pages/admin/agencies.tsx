@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -15,7 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { CURRENCY_OPTIONS } from "@/lib/currency";
-import { isValidHex, isLightColor } from "@/lib/color";
+import { isValidHex, isLightColor, getContrastRatio, getWcagLevel } from "@/lib/color";
 
 // ─── Preset colour palette ────────────────────────────────────────────────────
 
@@ -31,6 +31,57 @@ const COLOUR_PRESETS = [
   { hex: "#db2777", label: "Pink" },
   { hex: "#374151", label: "Slate" },
 ];
+
+// ─── Contrast badge ───────────────────────────────────────────────────────────
+
+function ContrastBadge({ hex }: { hex: string }) {
+  if (!isValidHex(hex)) return null;
+
+  const vsWhite = getContrastRatio(hex, "#ffffff");
+  const vsBlack = getContrastRatio(hex, "#000000");
+  const bestRatio = Math.max(vsWhite, vsBlack);
+  const bestFg = vsWhite > vsBlack ? "#ffffff" : "#000000";
+  const level = getWcagLevel(bestRatio);
+
+  const passes   = level === "AAA" || level === "AA";
+  const partial  = level === "AA Large";
+
+  const badge = passes
+    ? { icon: CheckCircle2, cls: "bg-emerald-50 text-emerald-700 border-emerald-200", tip: "Good contrast" }
+    : partial
+    ? { icon: AlertTriangle, cls: "bg-amber-50 text-amber-700 border-amber-200",   tip: "OK for large text / UI only" }
+    : { icon: XCircle,       cls: "bg-red-50 text-red-700 border-red-200",         tip: "Insufficient contrast — consider a darker or lighter colour" };
+
+  const Icon = badge.icon;
+
+  return (
+    <div className="flex items-center gap-2 mt-1.5">
+      {/* Mini live text-on-colour preview */}
+      <div
+        className="px-2 py-0.5 rounded text-xs font-bold select-none shrink-0"
+        style={{ backgroundColor: hex, color: bestFg }}
+        title="How text looks on this colour"
+      >
+        Aa
+      </div>
+
+      {/* WCAG badge */}
+      <div
+        className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium ${badge.cls}`}
+        title={badge.tip}
+      >
+        <Icon className="h-3 w-3 shrink-0" />
+        <span>WCAG {level}</span>
+        <span className="opacity-60">· {bestRatio.toFixed(1)}:1</span>
+      </div>
+
+      {/* Supplementary hint for failures */}
+      {level === "Fail" && (
+        <span className="text-xs text-red-600">Low contrast</span>
+      )}
+    </div>
+  );
+}
 
 // ─── Colour picker input ──────────────────────────────────────────────────────
 
@@ -99,6 +150,9 @@ function ColorPickerInput({ value, onChange, label, presets = false }: ColorPick
           ))}
         </div>
       )}
+
+      {/* Accessibility contrast check */}
+      <ContrastBadge hex={clean} />
     </div>
   );
 }

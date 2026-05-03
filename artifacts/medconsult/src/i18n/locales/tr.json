@@ -12,7 +12,9 @@
     "emailLogs": "E-posta Günlüğü",
     "adminPortal": "Yönetici Paneli",
     "userGuide": "Kullanıcı Kılavuzu",
-    "technicalRef": "Teknik Referans"
+    "technicalRef": "Teknik Referans",
+    "urs": "Kullanıcı Gereksinimleri",
+    "designDoc": "Tasarım Belgesi"
   },
   "common": {
     "save": "Kaydet",

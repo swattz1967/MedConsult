@@ -12,7 +12,9 @@
     "emailLogs": "Email Log",
     "adminPortal": "Admin Portal",
     "userGuide": "User Guide",
-    "technicalRef": "Technical Reference"
+    "technicalRef": "Technical Reference",
+    "urs": "User Requirements",
+    "designDoc": "Design Document"
   },
   "common": {
     "save": "Save",

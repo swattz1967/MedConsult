@@ -17,6 +17,8 @@ import {
   MailCheck,
   BookOpen,
   Code2,
+  CheckSquare,
+  Layers,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem,
@@ -57,6 +59,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { labelKey: "nav.settings",       href: "/admin/settings",        icon: Settings },
     { labelKey: "nav.userGuide",      href: "/guide",                 icon: BookOpen },
     { labelKey: "nav.technicalRef",   href: "/admin/technical-reference", icon: Code2 },
+    { labelKey: "nav.urs",            href: "/admin/urs",                 icon: CheckSquare },
+    { labelKey: "nav.designDoc",      href: "/admin/design-document",     icon: Layers },
   ];
 
   const NavItems = () => (

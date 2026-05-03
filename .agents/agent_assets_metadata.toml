@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "Rkg0b_EN5gO9BfRRc0yub"
+uri = "file://scripts/medconsult-session-summary.md"
+type = "text"
+title = "MedConsult – Build Session Summary & Technical Reference"

@@ -906,6 +906,16 @@ paths:
           in: query
           schema:
             type: ["string", "null"]
+        - name: dateFrom
+          in: query
+          description: "ISO 8601 date string (YYYY-MM-DD). Filter logs sent on or after this date."
+          schema:
+            type: ["string", "null"]
+        - name: dateTo
+          in: query
+          description: "ISO 8601 date string (YYYY-MM-DD). Filter logs sent on or before this date."
+          schema:
+            type: ["string", "null"]
       responses:
         "200":
           description: Paginated email logs

@@ -1069,6 +1069,18 @@ export const ListEmailLogsQueryParams = zod.object({
   limit: zod.coerce.number().optional(),
   status: zod.coerce.string().nullish(),
   templateType: zod.coerce.string().nullish(),
+  dateFrom: zod.coerce
+    .string()
+    .nullish()
+    .describe(
+      "ISO 8601 date string (YYYY-MM-DD). Filter logs sent on or after this date.",
+    ),
+  dateTo: zod.coerce
+    .string()
+    .nullish()
+    .describe(
+      "ISO 8601 date string (YYYY-MM-DD). Filter logs sent on or before this date.",
+    ),
 });
 
 export const ListEmailLogsResponse = zod.object({

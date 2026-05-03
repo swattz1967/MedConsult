@@ -971,6 +971,16 @@ export type ListEmailLogsParams = {
    * @nullable
    */
   templateType?: string | null;
+  /**
+   * ISO 8601 date string (YYYY-MM-DD). Filter logs sent on or after this date.
+   * @nullable
+   */
+  dateFrom?: string | null;
+  /**
+   * ISO 8601 date string (YYYY-MM-DD). Filter logs sent on or before this date.
+   * @nullable
+   */
+  dateTo?: string | null;
 };
 
 export type ListQuestionnairesParams = {

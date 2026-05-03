@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useListEmailLogs } from "@workspace/api-client-react";
 import { useAgency } from "@/contexts/AgencyContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -20,12 +21,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { MailCheck, ChevronLeft, ChevronRight, AlertCircle, CheckCircle2, Download } from "lucide-react";
-import { format } from "date-fns";
+import {
+  MailCheck,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
+  CheckCircle2,
+  Download,
+  CalendarRange,
+} from "lucide-react";
+import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 const EXPORT_LIMIT = 10_000;
+
+// ─── Label maps ───────────────────────────────────────────────────────────────
 
 const TEMPLATE_LABELS: Record<string, string> = {
   registration_welcome:    "Registration Welcome",
@@ -50,6 +61,34 @@ const TEMPLATE_OPTIONS = [
   ...Object.entries(TEMPLATE_LABELS).map(([value, label]) => ({ value, label })),
 ];
 
+// ─── Date preset helpers ──────────────────────────────────────────────────────
+
+type Preset = "all" | "today" | "7d" | "30d" | "90d" | "custom";
+
+const PRESET_LABELS: Record<Preset, string> = {
+  all:    "All time",
+  today:  "Today",
+  "7d":   "Last 7 days",
+  "30d":  "Last 30 days",
+  "90d":  "Last 90 days",
+  custom: "Custom range",
+};
+
+function isoDate(d: Date): string {
+  return format(d, "yyyy-MM-dd");
+}
+
+function presetToDates(preset: Preset): { from: string; to: string } | null {
+  const today = new Date();
+  switch (preset) {
+    case "today": return { from: isoDate(startOfDay(today)), to: isoDate(endOfDay(today)) };
+    case "7d":    return { from: isoDate(subDays(today, 6)), to: isoDate(today) };
+    case "30d":   return { from: isoDate(subDays(today, 29)), to: isoDate(today) };
+    case "90d":   return { from: isoDate(subDays(today, 89)), to: isoDate(today) };
+    default:      return null;
+  }
+}
+
 // ─── CSV helpers ──────────────────────────────────────────────────────────────
 
 function csvEscape(value: string | null | undefined): string {
@@ -58,21 +97,6 @@ function csvEscape(value: string | null | undefined): string {
     return `"${s.replace(/"/g, '""')}"`;
   }
   return s;
-}
-
-function buildCsvUrl(
-  agencyId: number,
-  statusFilter: string,
-  templateFilter: string,
-): string {
-  const params = new URLSearchParams({
-    agencyId: String(agencyId),
-    limit: String(EXPORT_LIMIT),
-    page: "1",
-  });
-  if (statusFilter) params.set("status", statusFilter);
-  if (templateFilter) params.set("templateType", templateFilter);
-  return `/api/email-logs?${params.toString()}`;
 }
 
 interface EmailLogRow {
@@ -92,8 +116,8 @@ interface EmailLogRow {
 function rowsToCsv(rows: EmailLogRow[]): string {
   const header = [
     "ID", "Date", "Time", "Template", "Recipient Email",
-    "Recipient Type", "Subject", "Status", "Error", "Agency ID",
-    "Appointment ID", "Customer ID",
+    "Recipient Type", "Subject", "Status", "Error",
+    "Agency ID", "Appointment ID", "Customer ID",
   ].join(",");
 
   const lines = rows.map((r) => {
@@ -131,41 +155,76 @@ function downloadCsv(csv: string, filename: string) {
 
 export default function AdminEmailLogs() {
   const { agencyId } = useAgency();
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState("");
-  const [templateFilter, setTemplateFilter] = useState("");
-  const [isExporting, setIsExporting] = useState(false);
 
-  const { data, isLoading } = useListEmailLogs({
+  const [page,           setPage]           = useState(1);
+  const [statusFilter,   setStatusFilter]   = useState("");
+  const [templateFilter, setTemplateFilter] = useState("");
+  const [preset,         setPreset]         = useState<Preset>("all");
+  const [customFrom,     setCustomFrom]     = useState("");
+  const [customTo,       setCustomTo]       = useState("");
+  const [isExporting,    setIsExporting]    = useState(false);
+
+  // Resolve active date range from preset or custom inputs
+  const dateRange = useMemo<{ from: string; to: string } | null>(() => {
+    if (preset === "custom") {
+      if (customFrom || customTo) return { from: customFrom, to: customTo };
+      return null;
+    }
+    return presetToDates(preset);
+  }, [preset, customFrom, customTo]);
+
+  const queryParams = {
     agencyId: agencyId ?? 0,
     page,
     limit: PAGE_SIZE,
-    ...(statusFilter ? { status: statusFilter } : {}),
+    ...(statusFilter   ? { status: statusFilter }         : {}),
     ...(templateFilter ? { templateType: templateFilter } : {}),
-  });
+    ...(dateRange?.from ? { dateFrom: dateRange.from }    : {}),
+    ...(dateRange?.to   ? { dateTo:   dateRange.to }      : {}),
+  };
 
-  const logs = data?.logs ?? [];
-  const total = data?.total ?? 0;
+  const { data, isLoading } = useListEmailLogs(queryParams);
+
+  const logs       = data?.logs ?? [];
+  const total      = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const handleFilterChange = (setter: (v: string) => void) => (v: string) => {
-    setter(v === "all" ? "" : v);
-    setPage(1);
-  };
+  function resetPage() { setPage(1); }
+
+  function handleFilterChange(setter: (v: string) => void) {
+    return (v: string) => { setter(v === "all" ? "" : v); resetPage(); };
+  }
+
+  function handlePresetChange(v: string) {
+    setPreset(v as Preset);
+    if (v !== "custom") { setCustomFrom(""); setCustomTo(""); }
+    resetPage();
+  }
 
   async function handleExport() {
     if (!agencyId) return;
     setIsExporting(true);
     try {
-      const url = buildCsvUrl(agencyId, statusFilter, templateFilter);
-      const res = await fetch(url);
+      const params = new URLSearchParams({
+        agencyId: String(agencyId),
+        limit:    String(EXPORT_LIMIT),
+        page:     "1",
+      });
+      if (statusFilter)    params.set("status",       statusFilter);
+      if (templateFilter)  params.set("templateType", templateFilter);
+      if (dateRange?.from) params.set("dateFrom",     dateRange.from);
+      if (dateRange?.to)   params.set("dateTo",       dateRange.to);
+
+      const res  = await fetch(`/api/email-logs?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as { logs: EmailLogRow[] };
-      const csv = rowsToCsv(json.logs ?? []);
+      const csv  = rowsToCsv(json.logs ?? []);
+
       const stamp = format(new Date(), "yyyy-MM-dd");
       const parts = ["email-log", stamp];
-      if (statusFilter) parts.push(statusFilter);
-      if (templateFilter) parts.push(templateFilter.replace(/_/g, "-"));
+      if (preset !== "all") parts.push(preset === "custom" ? `${customFrom}-${customTo}` : preset);
+      if (statusFilter)    parts.push(statusFilter);
+      if (templateFilter)  parts.push(templateFilter.replace(/_/g, "-"));
       downloadCsv(csv, `${parts.join("_")}.csv`);
     } finally {
       setIsExporting(false);
@@ -181,8 +240,9 @@ export default function AdminEmailLogs() {
         </p>
       </div>
 
-      {/* Filters + export */}
+      {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
+        {/* Status */}
         <Select value={statusFilter || "all"} onValueChange={handleFilterChange(setStatusFilter)}>
           <SelectTrigger className="w-36">
             <SelectValue placeholder="Status" />
@@ -194,8 +254,9 @@ export default function AdminEmailLogs() {
           </SelectContent>
         </Select>
 
+        {/* Template */}
         <Select value={templateFilter || "all"} onValueChange={handleFilterChange(setTemplateFilter)}>
-          <SelectTrigger className="w-56">
+          <SelectTrigger className="w-52">
             <SelectValue placeholder="Template" />
           </SelectTrigger>
           <SelectContent>
@@ -206,6 +267,40 @@ export default function AdminEmailLogs() {
             ))}
           </SelectContent>
         </Select>
+
+        {/* Date preset */}
+        <Select value={preset} onValueChange={handlePresetChange}>
+          <SelectTrigger className="w-40">
+            <CalendarRange className="h-4 w-4 mr-1 text-muted-foreground shrink-0" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(PRESET_LABELS) as Preset[]).map((p) => (
+              <SelectItem key={p} value={p}>{PRESET_LABELS[p]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Custom date inputs */}
+        {preset === "custom" && (
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              className="h-9 w-36 text-sm"
+              value={customFrom}
+              max={customTo || undefined}
+              onChange={(e) => { setCustomFrom(e.target.value); resetPage(); }}
+            />
+            <span className="text-muted-foreground text-sm">to</span>
+            <Input
+              type="date"
+              className="h-9 w-36 text-sm"
+              value={customTo}
+              min={customFrom || undefined}
+              onChange={(e) => { setCustomTo(e.target.value); resetPage(); }}
+            />
+          </div>
+        )}
 
         <span className="text-sm text-muted-foreground">
           {total.toLocaleString()} email{total !== 1 ? "s" : ""}
@@ -238,7 +333,9 @@ export default function AdminEmailLogs() {
               </div>
               <p className="font-medium text-sm">No emails logged yet</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Emails will appear here once sent through any template
+                {preset !== "all"
+                  ? "No emails match the selected date range"
+                  : "Emails will appear here once sent through any template"}
               </p>
             </div>
           ) : (
@@ -285,11 +382,9 @@ export default function AdminEmailLogs() {
                             : "bg-red-100 text-red-700",
                         )}
                       >
-                        {log.status === "sent" ? (
-                          <CheckCircle2 className="h-3 w-3" />
-                        ) : (
-                          <AlertCircle className="h-3 w-3" />
-                        )}
+                        {log.status === "sent"
+                          ? <CheckCircle2 className="h-3 w-3" />
+                          : <AlertCircle  className="h-3 w-3" />}
                         {log.status}
                       </span>
                     </TableCell>
@@ -306,13 +401,19 @@ export default function AdminEmailLogs() {
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>Page {page} of {totalPages}</span>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)} disabled={page === 1}>
-              <ChevronLeft className="h-4 w-4" />
-              Prev
+            <Button
+              variant="outline" size="sm"
+              onClick={() => setPage((p) => p - 1)}
+              disabled={page === 1}
+            >
+              <ChevronLeft className="h-4 w-4" /> Prev
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages}>
-              Next
-              <ChevronRight className="h-4 w-4" />
+            <Button
+              variant="outline" size="sm"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page >= totalPages}
+            >
+              Next <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>

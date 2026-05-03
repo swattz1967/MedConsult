@@ -11,7 +11,8 @@
     "settings": "Configuración",
     "emailLogs": "Registro de Emails",
     "adminPortal": "Portal Admin",
-    "userGuide": "Guía del Usuario"
+    "userGuide": "Guía del Usuario",
+    "technicalRef": "Referencia Técnica"
   },
   "common": {
     "save": "Guardar",

@@ -11,7 +11,8 @@
     "settings": "Ayarlar",
     "emailLogs": "E-posta Günlüğü",
     "adminPortal": "Yönetici Paneli",
-    "userGuide": "Kullanıcı Kılavuzu"
+    "userGuide": "Kullanıcı Kılavuzu",
+    "technicalRef": "Teknik Referans"
   },
   "common": {
     "save": "Kaydet",

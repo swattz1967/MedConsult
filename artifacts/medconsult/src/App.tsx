@@ -36,6 +36,7 @@ import ConsultationDetail from "@/pages/admin/consultation-detail";
 import AdminReports from "@/pages/admin/reports";
 import AdminEmailLogs from "@/pages/admin/email-logs";
 import AdminSettings from "@/pages/admin/settings";
+import TechnicalReference from "@/pages/admin/technical-reference";
 import SurgeonDashboard from "@/pages/surgeon/dashboard";
 import SurgeonAppointments from "@/pages/surgeon/appointments";
 import ConsultationRoom from "@/pages/surgeon/consultation-room";
@@ -198,6 +199,7 @@ function AdminRouter() {
         <Route path="/admin/reports" component={AdminReports} />
         <Route path="/admin/email-logs" component={AdminEmailLogs} />
         <Route path="/admin/settings" component={AdminSettings} />
+        <Route path="/admin/technical-reference" component={TechnicalReference} />
         <Route component={NotFound} />
       </Switch>
     </AdminLayout>

@@ -16,6 +16,7 @@ import {
   Globe,
   MailCheck,
   BookOpen,
+  Code2,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem,
@@ -55,6 +56,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { labelKey: "nav.emailLogs",      href: "/admin/email-logs",      icon: MailCheck },
     { labelKey: "nav.settings",       href: "/admin/settings",        icon: Settings },
     { labelKey: "nav.userGuide",      href: "/guide",                 icon: BookOpen },
+    { labelKey: "nav.technicalRef",   href: "/admin/technical-reference", icon: Code2 },
   ];
 
   const NavItems = () => (

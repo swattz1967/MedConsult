@@ -11,7 +11,8 @@
     "settings": "Settings",
     "emailLogs": "Email Log",
     "adminPortal": "Admin Portal",
-    "userGuide": "User Guide"
+    "userGuide": "User Guide",
+    "technicalRef": "Technical Reference"
   },
   "common": {
     "save": "Save",

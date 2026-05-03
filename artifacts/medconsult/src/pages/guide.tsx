@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -8,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Building2,
   CalendarCheck,
@@ -15,6 +17,8 @@ import {
   UserRound,
   Globe,
   Printer,
+  Search,
+  X,
 } from "lucide-react";
 
 // ─── Guide structure ──────────────────────────────────────────────────────────
@@ -120,17 +124,12 @@ const ROLE_DOT: Record<RoleKey, string> = {
   customer:    "bg-rose-400",
 };
 
-// ─── Print styles (injected once) ─────────────────────────────────────────────
+// ─── Print styles ─────────────────────────────────────────────────────────────
 
 const PRINT_STYLES = `
 @media print {
-  /* Hide interactive chrome */
   .guide-no-print { display: none !important; }
-
-  /* Unstick the header so it doesn't repeat on every page */
   .guide-header { position: static !important; box-shadow: none !important; }
-
-  /* Show ALL tab panels regardless of active state */
   [role="tabpanel"],
   [role="tabpanel"][hidden],
   [role="tabpanel"][data-state="inactive"] {
@@ -140,35 +139,65 @@ const PRINT_STYLES = `
     height: auto !important;
     overflow: visible !important;
   }
-
-  /* Each role section starts on a new page (except the first) */
   .guide-role-section + .guide-role-section {
     break-before: page;
     page-break-before: always;
   }
-
-  /* Keep section cards together — avoid splitting across pages */
   .guide-section-card {
     break-inside: avoid;
     page-break-inside: avoid;
   }
-
-  /* Reset backgrounds so ink-saving mode doesn't strip colours */
   body { background: white !important; }
   .guide-page { background: white !important; }
-
-  /* Slightly tighten spacing for print */
   .guide-role-section { margin-bottom: 1rem; }
 }
 `;
 
-// ─── Role content renderer (shared by tabs and print) ─────────────────────────
+// ─── Search types ─────────────────────────────────────────────────────────────
+
+interface IndexEntry {
+  role: RoleKey;
+  sectionIdx: number;
+  sectionKey: string;
+  title: string;
+  items: string[];
+}
+
+interface SearchHit {
+  role: RoleKey;
+  sectionIdx: number;
+  sectionKey: string;
+  title: string;
+  titleMatch: boolean;
+  matchingItems: string[];
+  allItems: string[];
+}
+
+// ─── Highlight helper ─────────────────────────────────────────────────────────
+
+function HighlightText({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>;
+  const lower = text.toLowerCase();
+  const q = query.toLowerCase();
+  const idx = lower.indexOf(q);
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-amber-200 text-amber-900 rounded-sm px-0.5 not-italic font-medium">
+        {text.slice(idx, idx + query.length)}
+      </mark>
+      {text.slice(idx + query.length)}
+    </>
+  );
+}
+
+// ─── Role content (used by tabs) ──────────────────────────────────────────────
 
 function RoleContent({ role, icon: Icon, sections }: RoleDef) {
   const { t } = useTranslation();
   return (
-    <div className={`guide-role-section`}>
-      {/* Intro card */}
+    <div className="guide-role-section">
       <div className={`rounded-xl border p-5 mb-6 ${ROLE_BG[role]}`}>
         <div className="flex items-center gap-3 mb-2">
           <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${ROLE_BADGE[role]}`}>
@@ -180,8 +209,6 @@ function RoleContent({ role, icon: Icon, sections }: RoleDef) {
           {t(`guide.${role}.intro`)}
         </p>
       </div>
-
-      {/* Sections */}
       <div className="space-y-5">
         {sections.map(({ key, items }, sectionIdx) => (
           <div key={key} className="guide-section-card bg-white rounded-xl border p-5 shadow-sm">
@@ -208,14 +235,132 @@ function RoleContent({ role, icon: Icon, sections }: RoleDef) {
   );
 }
 
+// ─── Search results view ──────────────────────────────────────────────────────
+
+function SearchResults({ hits, query }: { hits: SearchHit[]; query: string }) {
+  const { t } = useTranslation();
+
+  if (hits.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <Search className="h-10 w-10 text-gray-300 mb-4" />
+        <p className="text-gray-500 text-base font-medium">
+          {t("guide.searchNoResults")} &ldquo;{query}&rdquo;
+        </p>
+        <p className="text-gray-400 text-sm mt-1">{t("guide.searchTryAnother")}</p>
+      </div>
+    );
+  }
+
+  const totalItems = hits.reduce((acc, h) => acc + h.matchingItems.length + (h.titleMatch ? 1 : 0), 0);
+  const roleCount = new Set(hits.map((h) => h.role)).size;
+
+  return (
+    <div>
+      <p className="text-sm text-gray-500 mb-5">
+        {totalItems} {totalItems === 1 ? t("guide.searchResult") : t("guide.searchResults")}{" "}
+        &ldquo;<span className="font-medium text-gray-700">{query}</span>&rdquo;
+        {" "}&mdash;{" "}
+        {roleCount} {roleCount === 1 ? t("guide.searchRole") : t("guide.searchRoles")}
+      </p>
+
+      <div className="space-y-4">
+        {hits.map((hit) => {
+          const roleDef = GUIDE.find((g) => g.role === hit.role)!;
+          const Icon = roleDef.icon;
+          return (
+            <div
+              key={`${hit.role}-${hit.sectionKey}`}
+              className="guide-section-card bg-white rounded-xl border p-5 shadow-sm"
+            >
+              {/* Role badge */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${ROLE_BADGE[hit.role]}`}>
+                  <Icon className="h-3 w-3" />
+                  {t(`guide.tabs.${hit.role}`)}
+                </span>
+                <span className="text-gray-300 text-xs">›</span>
+                <span className="text-xs text-gray-400">
+                  {t("guide.searchSection")} {hit.sectionIdx + 1}
+                </span>
+              </div>
+
+              {/* Section title (highlighted if matched) */}
+              <h3 className="font-semibold text-gray-900 text-base mb-3 flex items-center gap-2">
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${ROLE_NUM_BG[hit.role]}`}>
+                  {hit.sectionIdx + 1}
+                </span>
+                <HighlightText text={hit.title} query={hit.titleMatch ? query : ""} />
+              </h3>
+
+              {/* Items — show matching ones highlighted, dim non-matching */}
+              <ul className="space-y-2 pl-8">
+                {hit.allItems.map((item, i) => {
+                  const isMatch = hit.matchingItems.includes(item);
+                  return (
+                    <li
+                      key={i}
+                      className={`flex items-start gap-2 text-sm transition-opacity ${isMatch ? "text-gray-700" : "text-gray-300"}`}
+                    >
+                      <span className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${isMatch ? ROLE_DOT[hit.role] : "bg-gray-200"}`} />
+                      {isMatch ? <HighlightText text={item} query={query} /> : item}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function GuidePage() {
   const { t, i18n } = useTranslation();
+  const [query, setQuery] = useState("");
+
+  // Build a flat search index from all translated content (re-built when language changes)
+  const index = useMemo<IndexEntry[]>(() => {
+    return GUIDE.flatMap(({ role, sections }) =>
+      sections.map(({ key, items }, sectionIdx) => ({
+        role,
+        sectionIdx,
+        sectionKey: key,
+        title: t(`guide.${role}.${key}Title`),
+        items: Array.from({ length: items }, (_, i) => t(`guide.${role}.${key}i${i + 1}`)),
+      }))
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, i18n.language]);
+
+  // Run search
+  const searchHits = useMemo<SearchHit[]>(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return index
+      .map((entry) => {
+        const titleMatch = entry.title.toLowerCase().includes(q);
+        const matchingItems = entry.items.filter((item) => item.toLowerCase().includes(q));
+        return {
+          role: entry.role,
+          sectionIdx: entry.sectionIdx,
+          sectionKey: entry.sectionKey,
+          title: entry.title,
+          titleMatch,
+          matchingItems,
+          allItems: entry.items,
+        };
+      })
+      .filter((h) => h.titleMatch || h.matchingItems.length > 0);
+  }, [index, query]);
+
+  const isSearching = query.trim().length > 0;
 
   return (
     <div className="guide-page min-h-screen bg-gray-50">
-      {/* Inject print styles */}
       <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
 
       {/* Header */}
@@ -257,44 +402,66 @@ export default function GuidePage() {
         </div>
       </header>
 
-      {/* Hero */}
+      {/* Hero + search bar */}
       <div className="bg-white border-b">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 flex items-end justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-              {t("guide.pageTitle")}
-            </h1>
-            <p className="mt-2 text-gray-500 text-base max-w-2xl">
-              {t("guide.pageSubtitle")}
-            </p>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+            {t("guide.pageTitle")}
+          </h1>
+          <p className="mt-2 text-gray-500 text-base max-w-2xl">
+            {t("guide.pageSubtitle")}
+          </p>
+
+          {/* Search input */}
+          <div className="guide-no-print relative mt-6 max-w-xl">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("guide.searchPlaceholder")}
+              className="pl-9 pr-9 h-10 text-sm bg-gray-50 border-gray-200 focus:bg-white"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Content — tabs on screen, all expanded in print */}
+      {/* Main content */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        <Tabs defaultValue="appOwner">
-          {/* Tab switcher — hidden when printing */}
-          <TabsList className="guide-no-print flex flex-wrap h-auto gap-1 mb-8 bg-transparent p-0">
-            {GUIDE.map(({ role, icon: Icon, color }) => (
-              <TabsTrigger
-                key={role}
-                value={role}
-                className="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:border-gray-300 text-gray-600 data-[state=active]:text-gray-900 transition-all"
-              >
-                <Icon className={`h-4 w-4 ${color}`} />
-                {t(`guide.tabs.${role}`)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        {isSearching ? (
+          // ── Search results ──
+          <SearchResults hits={searchHits} query={query.trim()} />
+        ) : (
+          // ── Normal tabs view ──
+          <Tabs defaultValue="appOwner">
+            <TabsList className="guide-no-print flex flex-wrap h-auto gap-1 mb-8 bg-transparent p-0">
+              {GUIDE.map(({ role, icon: Icon, color }) => (
+                <TabsTrigger
+                  key={role}
+                  value={role}
+                  className="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:border-gray-300 text-gray-600 data-[state=active]:text-gray-900 transition-all"
+                >
+                  <Icon className={`h-4 w-4 ${color}`} />
+                  {t(`guide.tabs.${role}`)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-          {/* Each tab panel renders its role content */}
-          {GUIDE.map((roleDef) => (
-            <TabsContent key={roleDef.role} value={roleDef.role} className="mt-0">
-              <RoleContent {...roleDef} />
-            </TabsContent>
-          ))}
-        </Tabs>
+            {GUIDE.map((roleDef) => (
+              <TabsContent key={roleDef.role} value={roleDef.role} className="mt-0">
+                <RoleContent {...roleDef} />
+              </TabsContent>
+            ))}
+          </Tabs>
+        )}
       </div>
 
       {/* Footer */}

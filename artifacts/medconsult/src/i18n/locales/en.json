@@ -10,7 +10,8 @@
     "reports": "Reports",
     "settings": "Settings",
     "emailLogs": "Email Log",
-    "adminPortal": "Admin Portal"
+    "adminPortal": "Admin Portal",
+    "userGuide": "User Guide"
   },
   "common": {
     "save": "Save",

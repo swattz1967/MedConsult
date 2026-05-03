@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Globe,
   MailCheck,
+  BookOpen,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem,
@@ -33,6 +34,7 @@ const LANGUAGES = [
   { code: "en",    label: "English",        flag: "🇬🇧" },
   { code: "pt-BR", label: "Português (BR)", flag: "🇧🇷" },
   { code: "es",    label: "Español",        flag: "🇪🇸" },
+  { code: "tr",    label: "Türkçe",         flag: "🇹🇷" },
 ];
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -52,6 +54,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { labelKey: "nav.reports",        href: "/admin/reports",         icon: BarChart2 },
     { labelKey: "nav.emailLogs",      href: "/admin/email-logs",      icon: MailCheck },
     { labelKey: "nav.settings",       href: "/admin/settings",        icon: Settings },
+    { labelKey: "nav.userGuide",      href: "/guide",                 icon: BookOpen },
   ];
 
   const NavItems = () => (

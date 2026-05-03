@@ -3,7 +3,8 @@ import { UserButton } from "@clerk/react";
 import { 
   CalendarDays, 
   LayoutDashboard,
-  Menu
+  Menu,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -34,6 +35,13 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
                 {item.label}
               </Link>
             ))}
+            <Link
+              href="/guide"
+              className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-primary ${location === "/guide" ? "text-primary" : "text-muted-foreground"}`}
+            >
+              <BookOpen className="h-4 w-4" />
+              User Guide
+            </Link>
           </nav>
           <UserButton />
         </div>

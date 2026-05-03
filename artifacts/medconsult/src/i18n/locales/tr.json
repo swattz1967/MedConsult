@@ -10,7 +10,8 @@
     "reports": "Raporlar",
     "settings": "Ayarlar",
     "emailLogs": "E-posta Günlüğü",
-    "adminPortal": "Yönetici Paneli"
+    "adminPortal": "Yönetici Paneli",
+    "userGuide": "Kullanıcı Kılavuzu"
   },
   "common": {
     "save": "Kaydet",

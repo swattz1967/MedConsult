@@ -3,7 +3,8 @@ import { UserButton } from "@clerk/react";
 import { 
   CalendarDays, 
   LayoutDashboard,
-  Menu
+  Menu,
+  BookOpen,
 } from "lucide-react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ export function SurgeonLayout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { label: "Dashboard", href: "/surgeon", icon: LayoutDashboard },
     { label: "Appointments", href: "/surgeon/appointments", icon: CalendarDays },
+    { label: "User Guide", href: "/guide", icon: BookOpen },
   ];
 
   return (

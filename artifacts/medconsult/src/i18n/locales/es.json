@@ -10,7 +10,8 @@
     "reports": "Informes",
     "settings": "Configuración",
     "emailLogs": "Registro de Emails",
-    "adminPortal": "Portal Admin"
+    "adminPortal": "Portal Admin",
+    "userGuide": "Guía del Usuario"
   },
   "common": {
     "save": "Guardar",

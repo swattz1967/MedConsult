@@ -37,6 +37,7 @@ import type {
   CreateSurgeonBody,
   Customer,
   DashboardSummary,
+  EmailLogsResponse,
   Event,
   EventSurgeon,
   GetDashboardSummaryParams,
@@ -46,6 +47,7 @@ import type {
   ListAppointmentsParams,
   ListConsultationRecordsParams,
   ListCustomersParams,
+  ListEmailLogsParams,
   ListEventsParams,
   ListLanguagesParams,
   ListMedicalServicesParams,
@@ -3723,6 +3725,100 @@ export const useUpsertReminderSettings = <
 > => {
   return useMutation(getUpsertReminderSettingsMutationOptions(options));
 };
+
+/**
+ * @summary List email activity logs for an agency
+ */
+export const getListEmailLogsUrl = (params: ListEmailLogsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/email-logs?${stringifiedParams}`
+    : `/api/email-logs`;
+};
+
+export const listEmailLogs = async (
+  params: ListEmailLogsParams,
+  options?: RequestInit,
+): Promise<EmailLogsResponse> => {
+  return customFetch<EmailLogsResponse>(getListEmailLogsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListEmailLogsQueryKey = (params?: ListEmailLogsParams) => {
+  return [`/api/email-logs`, ...(params ? [params] : [])] as const;
+};
+
+export const getListEmailLogsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listEmailLogs>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListEmailLogsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEmailLogs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListEmailLogsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmailLogs>>> = ({
+    signal,
+  }) => listEmailLogs(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listEmailLogs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListEmailLogsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listEmailLogs>>
+>;
+export type ListEmailLogsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List email activity logs for an agency
+ */
+
+export function useListEmailLogs<
+  TData = Awaited<ReturnType<typeof listEmailLogs>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListEmailLogsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEmailLogs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListEmailLogsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List questionnaires

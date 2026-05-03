@@ -68,7 +68,7 @@ router.post("/appointments", async (req, res): Promise<void> => {
     (async () => {
       const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, event.agencyId));
       const agencyBranding = agency
-        ? { name: agency.name, color: agency.primaryColor ?? "#145c4b", logoUrl: agency.logoUrl, email: agency.email }
+        ? { id: agency.id, name: agency.name, color: agency.primaryColor ?? "#145c4b", logoUrl: agency.logoUrl, email: agency.email }
         : undefined;
 
       const emailData = {
@@ -146,7 +146,7 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
     (async () => {
       const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, event.agencyId));
       const agencyBranding = agency
-        ? { name: agency.name, color: agency.primaryColor ?? "#145c4b", logoUrl: agency.logoUrl, email: agency.email }
+        ? { id: agency.id, name: agency.name, color: agency.primaryColor ?? "#145c4b", logoUrl: agency.logoUrl, email: agency.email }
         : undefined;
 
       const emailData = {

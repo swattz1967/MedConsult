@@ -54,6 +54,7 @@ router.post("/email/preview", async (req, res): Promise<void> => {
   }
 
   const agencyBranding = {
+    id: agency.id,
     name: agency.name,
     color: agency.primaryColor ?? "#145c4b",
     logoUrl: agency.logoUrl,

@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { logger } from "./logger";
 import { format } from "date-fns";
+import { db, emailLogsTable } from "@workspace/db";
 
 function getClient(): Resend | null {
   const key = process.env.RESEND_API_KEY;
@@ -16,6 +17,7 @@ const DEFAULT_FROM = process.env.EMAIL_FROM ?? "MedConsult <notifications@medcon
 // ─── Agency branding ──────────────────────────────────────────────────────────
 
 interface AgencyBranding {
+  id?: number;
   name: string;
   color: string;
   logoUrl?: string | null;
@@ -32,6 +34,34 @@ const DEFAULT_BRANDING: AgencyBranding = {
 function fromAddress(agency?: AgencyBranding): string {
   const name = agency?.name ?? DEFAULT_BRANDING.name;
   return process.env.EMAIL_FROM ?? `${name} <notifications@medconsult.app>`;
+}
+
+// ─── Email activity logger (fire-and-forget) ──────────────────────────────────
+
+function logEmail(params: {
+  agencyId?: number | null;
+  templateType: string;
+  recipientEmail: string;
+  recipientType: string;
+  subject: string;
+  status: "sent" | "failed";
+  errorMessage?: string;
+  appointmentId?: number | null;
+  customerId?: number | null;
+}): void {
+  db.insert(emailLogsTable).values({
+    agencyId: params.agencyId ?? null,
+    templateType: params.templateType,
+    recipientEmail: params.recipientEmail,
+    recipientType: params.recipientType,
+    subject: params.subject,
+    status: params.status,
+    errorMessage: params.errorMessage ?? null,
+    appointmentId: params.appointmentId ?? null,
+    customerId: params.customerId ?? null,
+  }).catch((err: unknown) => {
+    logger.error({ err }, "Failed to write email log");
+  });
 }
 
 // ─── Shared HTML helpers ──────────────────────────────────────────────────────
@@ -185,16 +215,19 @@ export async function sendRegistrationWelcome(data: RegistrationWelcomeData): Pr
     data.agency,
   );
 
+  const subject = `Welcome to ${data.agency.name} — your patient profile is ready`;
   try {
     await client.emails.send({
       from: fromAddress(data.agency),
       to: data.customerEmail,
-      subject: `Welcome to ${data.agency.name} — your patient profile is ready`,
+      subject,
       html,
     });
     logger.info({ customerId: data.customerId, to: data.customerEmail }, "Registration welcome email sent");
+    logEmail({ agencyId: data.agency.id, templateType: "registration_welcome", recipientEmail: data.customerEmail, recipientType: "customer", subject, status: "sent", customerId: data.customerId });
   } catch (err) {
     logger.error({ err, customerId: data.customerId }, "Failed to send registration welcome email");
+    logEmail({ agencyId: data.agency.id, templateType: "registration_welcome", recipientEmail: data.customerEmail, recipientType: "customer", subject, status: "failed", errorMessage: err instanceof Error ? err.message : String(err), customerId: data.customerId });
   }
 }
 
@@ -266,16 +299,19 @@ export async function sendBookingConfirmation(data: AppointmentEmailData, agency
     <a href="${baseUrl}/portal" style="display:inline-block;margin-top:8px;padding:12px 28px;background:${color};color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Open My Portal</a>
   `, agency);
 
+  const subject = `Consultation confirmed — ${data.surgeonName} on ${format(new Date(data.startTime), "MMM d, yyyy")}`;
   try {
     await client.emails.send({
       from: fromAddress(agency),
       to: data.customerEmail,
-      subject: `Consultation confirmed — ${data.surgeonName} on ${format(new Date(data.startTime), "MMM d, yyyy")}`,
+      subject,
       html,
     });
     logger.info({ appointmentId: data.appointmentId, to: data.customerEmail }, "Booking confirmation sent to customer");
+    logEmail({ agencyId: agency?.id, templateType: "booking_confirmation", recipientEmail: data.customerEmail, recipientType: "customer", subject, status: "sent", appointmentId: data.appointmentId });
   } catch (err) {
     logger.error({ err, appointmentId: data.appointmentId }, "Failed to send booking confirmation to customer");
+    logEmail({ agencyId: agency?.id, templateType: "booking_confirmation", recipientEmail: data.customerEmail, recipientType: "customer", subject, status: "failed", errorMessage: err instanceof Error ? err.message : String(err), appointmentId: data.appointmentId });
   }
 }
 
@@ -303,16 +339,19 @@ export async function sendNewBookingAlert(data: AppointmentEmailData, agency?: A
     <a href="${surgeonPortalUrl}" style="display:inline-block;margin-top:8px;padding:12px 28px;background:${color};color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Open Surgeon Portal</a>
   `, agency);
 
+  const subject = `New appointment: ${data.customerName} on ${format(new Date(data.startTime), "MMM d, yyyy")}`;
   try {
     await client.emails.send({
       from: fromAddress(agency),
       to: data.surgeonEmail,
-      subject: `New appointment: ${data.customerName} on ${format(new Date(data.startTime), "MMM d, yyyy")}`,
+      subject,
       html,
     });
     logger.info({ appointmentId: data.appointmentId, to: data.surgeonEmail }, "New booking alert sent to surgeon");
+    logEmail({ agencyId: agency?.id, templateType: "new_booking_alert", recipientEmail: data.surgeonEmail, recipientType: "surgeon", subject, status: "sent", appointmentId: data.appointmentId });
   } catch (err) {
     logger.error({ err, appointmentId: data.appointmentId }, "Failed to send new booking alert to surgeon");
+    logEmail({ agencyId: agency?.id, templateType: "new_booking_alert", recipientEmail: data.surgeonEmail, recipientType: "surgeon", subject, status: "failed", errorMessage: err instanceof Error ? err.message : String(err), appointmentId: data.appointmentId });
   }
 }
 
@@ -345,16 +384,19 @@ export async function sendDeclarationReminder(data: DeclarationReminderData, age
     <p style="margin-top:20px;font-size:12px;color:#9ca3af;">If you have already signed, you can ignore this email.</p>
   `, agency);
 
+  const subject = "Action required: Sign your patient declaration before your consultation";
   try {
     await client.emails.send({
       from: fromAddress(agency),
       to: data.customerEmail,
-      subject: "Action required: Sign your patient declaration before your consultation",
+      subject,
       html,
     });
     logger.info({ customerId: data.customerId, to: data.customerEmail }, "Declaration reminder sent");
+    logEmail({ agencyId: agency?.id, templateType: "declaration_reminder", recipientEmail: data.customerEmail, recipientType: "customer", subject, status: "sent", customerId: data.customerId });
   } catch (err) {
     logger.error({ err, customerId: data.customerId }, "Failed to send declaration reminder");
+    logEmail({ agencyId: agency?.id, templateType: "declaration_reminder", recipientEmail: data.customerEmail, recipientType: "customer", subject, status: "failed", errorMessage: err instanceof Error ? err.message : String(err), customerId: data.customerId });
     throw err;
   }
 }
@@ -403,19 +445,22 @@ export async function sendRescheduleNotification(
     <a href="${portalHref}" style="display:inline-block;margin-top:8px;padding:12px 28px;background:${color};color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">${portalLabel}</a>
   `, agency);
 
+  const subject = `Consultation rescheduled — ${data.eventName} now on ${format(new Date(data.startTime), "MMM d, yyyy")}`;
   try {
     await client.emails.send({
       from: fromAddress(agency),
       to: toEmail,
-      subject: `Consultation rescheduled — ${data.eventName} now on ${format(new Date(data.startTime), "MMM d, yyyy")}`,
+      subject,
       html,
     });
     logger.info(
       { appointmentId: data.appointmentId, to: toEmail, newTime: data.startTime },
       "Reschedule notification sent",
     );
+    logEmail({ agencyId: agency?.id, templateType: "reschedule_notification", recipientEmail: toEmail, recipientType, subject, status: "sent", appointmentId: data.appointmentId });
   } catch (err) {
     logger.error({ err, appointmentId: data.appointmentId }, "Failed to send reschedule notification");
+    logEmail({ agencyId: agency?.id, templateType: "reschedule_notification", recipientEmail: toEmail, recipientType, subject, status: "failed", errorMessage: err instanceof Error ? err.message : String(err), appointmentId: data.appointmentId });
   }
 }
 
@@ -515,15 +560,18 @@ export async function sendStatusChangeNotification(
     <a href="${portalHref}" style="display:inline-block;margin-top:8px;padding:12px 28px;background:${color};color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">${portalLabel}</a>
   `, agency);
 
+  const subject = `${copy.subject} — ${data.eventName}`;
   try {
     await client.emails.send({
       from: fromAddress(agency),
       to: toEmail,
-      subject: `${copy.subject} — ${data.eventName}`,
+      subject,
       html,
     });
     logger.info({ appointmentId: data.appointmentId, to: toEmail, status: newStatus }, "Status change notification sent");
+    logEmail({ agencyId: agency?.id, templateType: `status_${newStatus}`, recipientEmail: toEmail, recipientType, subject, status: "sent", appointmentId: data.appointmentId });
   } catch (err) {
     logger.error({ err, appointmentId: data.appointmentId }, "Failed to send status change notification");
+    logEmail({ agencyId: agency?.id, templateType: `status_${newStatus}`, recipientEmail: toEmail, recipientType, subject, status: "failed", errorMessage: err instanceof Error ? err.message : String(err), appointmentId: data.appointmentId });
   }
 }

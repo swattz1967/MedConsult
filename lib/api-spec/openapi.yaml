@@ -35,6 +35,8 @@ tags:
     description: Configuration lists
   - name: storage
     description: Object storage operations
+  - name: emailLogs
+    description: Email activity log
 paths:
   /healthz:
     get:
@@ -875,6 +877,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReminderSettings"
+
+  # --- EMAIL LOGS ---
+  /email-logs:
+    get:
+      operationId: listEmailLogs
+      tags: [emailLogs]
+      summary: List email activity logs for an agency
+      parameters:
+        - name: agencyId
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: templateType
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Paginated email logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailLogsResponse"
 
   # --- QUESTIONNAIRES ---
   /questionnaires:
@@ -2622,3 +2660,56 @@ components:
       required:
         - uploadUrl
         - objectKey
+
+    EmailLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        agencyId:
+          type: ["integer", "null"]
+        templateType:
+          type: string
+        recipientEmail:
+          type: string
+        recipientType:
+          type: string
+        subject:
+          type: string
+        status:
+          type: string
+        errorMessage:
+          type: ["string", "null"]
+        appointmentId:
+          type: ["integer", "null"]
+        customerId:
+          type: ["integer", "null"]
+        sentAt:
+          type: string
+      required:
+        - id
+        - templateType
+        - recipientEmail
+        - recipientType
+        - subject
+        - status
+        - sentAt
+
+    EmailLogsResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmailLog"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - logs
+        - total
+        - page
+        - limit

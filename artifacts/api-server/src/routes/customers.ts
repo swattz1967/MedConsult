@@ -54,6 +54,7 @@ router.post("/customers", async (req, res): Promise<void> => {
         customerName: `${customer.firstName} ${customer.lastName}`,
         customerEmail: customer.email!,
         agency: {
+          id: agency?.id,
           name: agency?.name ?? "MedConsult",
           color: agency?.primaryColor ?? "#145c4b",
           logoUrl: agency?.logoUrl,
@@ -135,7 +136,7 @@ router.post("/customers/:id/send-declaration-reminder", async (req, res): Promis
   try {
     const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, customer.agencyId));
     const agencyBranding = agency
-      ? { name: agency.name, color: agency.primaryColor ?? "#145c4b", logoUrl: agency.logoUrl, email: agency.email }
+      ? { id: agency.id, name: agency.name, color: agency.primaryColor ?? "#145c4b", logoUrl: agency.logoUrl, email: agency.email }
       : undefined;
 
     await sendDeclarationReminder(

@@ -879,6 +879,31 @@ export interface RequestUploadUrlResponse {
   objectKey: string;
 }
 
+export interface EmailLog {
+  id: number;
+  /** @nullable */
+  agencyId?: number | null;
+  templateType: string;
+  recipientEmail: string;
+  recipientType: string;
+  subject: string;
+  status: string;
+  /** @nullable */
+  errorMessage?: string | null;
+  /** @nullable */
+  appointmentId?: number | null;
+  /** @nullable */
+  customerId?: number | null;
+  sentAt: string;
+}
+
+export interface EmailLogsResponse {
+  logs: EmailLog[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 export type ListUsersParams = {
   /**
    * @nullable
@@ -932,6 +957,20 @@ export type SendDeclarationReminder200 = {
 
 export type GetReminderSettingsParams = {
   agencyId: number;
+};
+
+export type ListEmailLogsParams = {
+  agencyId: number;
+  page?: number;
+  limit?: number;
+  /**
+   * @nullable
+   */
+  status?: string | null;
+  /**
+   * @nullable
+   */
+  templateType?: string | null;
 };
 
 export type ListQuestionnairesParams = {

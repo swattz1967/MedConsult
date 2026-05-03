@@ -1061,6 +1061,38 @@ export const UpsertReminderSettingsResponse = zod.object({
 });
 
 /**
+ * @summary List email activity logs for an agency
+ */
+export const ListEmailLogsQueryParams = zod.object({
+  agencyId: zod.coerce.number(),
+  page: zod.coerce.number().optional(),
+  limit: zod.coerce.number().optional(),
+  status: zod.coerce.string().nullish(),
+  templateType: zod.coerce.string().nullish(),
+});
+
+export const ListEmailLogsResponse = zod.object({
+  logs: zod.array(
+    zod.object({
+      id: zod.number(),
+      agencyId: zod.number().nullish(),
+      templateType: zod.string(),
+      recipientEmail: zod.string(),
+      recipientType: zod.string(),
+      subject: zod.string(),
+      status: zod.string(),
+      errorMessage: zod.string().nullish(),
+      appointmentId: zod.number().nullish(),
+      customerId: zod.number().nullish(),
+      sentAt: zod.string(),
+    }),
+  ),
+  total: zod.number(),
+  page: zod.number(),
+  limit: zod.number(),
+});
+
+/**
  * @summary List questionnaires
  */
 export const ListQuestionnairesQueryParams = zod.object({

@@ -14,6 +14,7 @@ import {
   Settings,
   ChevronDown,
   Globe,
+  MailCheck,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem,
@@ -49,6 +50,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { labelKey: "nav.questionnaires", href: "/admin/questionnaires",  icon: FileText },
     { labelKey: "nav.consultations",  href: "/admin/consultations",   icon: ClipboardList },
     { labelKey: "nav.reports",        href: "/admin/reports",         icon: BarChart2 },
+    { labelKey: "nav.emailLogs",      href: "/admin/email-logs",      icon: MailCheck },
     { labelKey: "nav.settings",       href: "/admin/settings",        icon: Settings },
   ];
 

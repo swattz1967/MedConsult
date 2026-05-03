@@ -47,6 +47,7 @@ import CustomerPortal from "@/pages/portal/index";
 import QuestionnaireFormPage from "@/pages/portal/questionnaire";
 import DeclarationPage from "@/pages/portal/declaration";
 import BookingPage from "@/pages/booking";
+import GuidePage from "@/pages/guide";
 
 const queryClient = new QueryClient();
 
@@ -253,6 +254,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/events/:id/book/:surgeonId" component={BookingPage} />
           <Route path="/events/:id" component={EventPublic} />
           <Route path="/register" component={Register} />
+          <Route path="/guide" component={GuidePage} />
           <Route path="/admin/*" component={AdminRouter} />
           <Route path="/admin" component={AdminRouter} />
           <Route path="/surgeon/*" component={SurgeonRouter} />

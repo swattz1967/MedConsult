@@ -23,6 +23,8 @@ timeoutMs = 20000
 
 [userenv.shared]
 VITE_CLERK_PUBLISHABLE_KEY = "pk_test_Y29zbWljLW11dHQtMS5jbGVyay5hY2NvdW50cy5kZXYk"
+
+[userenv.development]
 APP_URL = "https://e6addaed-f07e-44ea-8497-67c420df612e-00-11oe055ky8u4g.kirk.replit.dev"
 
 [[ports]]

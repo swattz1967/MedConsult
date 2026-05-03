@@ -12,6 +12,20 @@ function getClient(): Resend | null {
   return new Resend(key);
 }
 
+/**
+ * Returns the canonical public URL for the app.
+ * Priority:
+ *   1. APP_URL env var (set explicitly in development)
+ *   2. First domain from REPLIT_DOMAINS (automatically correct in production)
+ *   3. Empty string (links will be relative — better than a wrong host)
+ */
+function getBaseUrl(): string {
+  if (process.env.APP_URL) return process.env.APP_URL;
+  const domains = process.env.REPLIT_DOMAINS;
+  if (domains) return `https://${domains.split(",")[0].trim()}`;
+  return "";
+}
+
 const DEFAULT_FROM = process.env.EMAIL_FROM ?? "MedConsult <notifications@medconsult.app>";
 
 // ─── Agency branding ──────────────────────────────────────────────────────────
@@ -153,7 +167,7 @@ export async function sendRegistrationWelcome(data: RegistrationWelcomeData): Pr
   const client = getClient();
   if (!client) return;
 
-  const baseUrl = process.env.APP_URL ?? "";
+  const baseUrl = getBaseUrl();
   const color = data.agency.color ?? DEFAULT_BRANDING.color;
 
   const html = emailWrapper(
@@ -237,7 +251,7 @@ export async function sendBookingConfirmation(data: AppointmentEmailData, agency
   const client = getClient();
   if (!client) return;
 
-  const baseUrl = process.env.APP_URL ?? "";
+  const baseUrl = getBaseUrl();
   const color = agency?.color ?? DEFAULT_BRANDING.color;
 
   const html = emailWrapper(`
@@ -322,7 +336,7 @@ export async function sendNewBookingAlert(data: AppointmentEmailData, agency?: A
   if (!client) return;
 
   const color = agency?.color ?? DEFAULT_BRANDING.color;
-  const surgeonPortalUrl = `${process.env.APP_URL ?? ""}/surgeon`;
+  const surgeonPortalUrl = `${getBaseUrl()}/surgeon`;
 
   const html = emailWrapper(`
     <h2>New consultation booked</h2>
@@ -367,7 +381,7 @@ export async function sendDeclarationReminder(data: DeclarationReminderData, age
   const client = getClient();
   if (!client) return;
 
-  const portalUrl = `${process.env.APP_URL ?? ""}/portal/declaration`;
+  const portalUrl = `${getBaseUrl()}/portal/declaration`;
   const color = agency?.color ?? DEFAULT_BRANDING.color;
 
   const html = emailWrapper(`
@@ -415,7 +429,7 @@ export async function sendRescheduleNotification(
   const client = getClient();
   if (!client) return;
 
-  const baseUrl = process.env.APP_URL ?? "";
+  const baseUrl = getBaseUrl();
   const color = agency?.color ?? DEFAULT_BRANDING.color;
   const isCustomer = recipientType === "customer";
   const toEmail = isCustomer ? data.customerEmail : data.surgeonEmail;
@@ -506,7 +520,7 @@ export async function sendStatusChangeNotification(
   const copy = STATUS_COPY[newStatus];
   if (!copy) return;
 
-  const baseUrl = process.env.APP_URL ?? "";
+  const baseUrl = getBaseUrl();
   const color = agency?.color ?? DEFAULT_BRANDING.color;
   const toEmail = recipientType === "customer" ? data.customerEmail : data.surgeonEmail;
   const toName = recipientType === "customer" ? data.customerName : data.surgeonName;

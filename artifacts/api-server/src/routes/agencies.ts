@@ -28,7 +28,9 @@ router.post("/agencies", async (req, res, next): Promise<void> => {
     return;
   }
   try {
+    req.log.info({ agencyName: parsed.data.name }, "Creating agency");
     const [agency] = await db.insert(agenciesTable).values(parsed.data).returning();
+    req.log.info({ agencyId: agency.id }, "Agency created");
     res.status(201).json(agency);
   } catch (err) {
     next(err);
@@ -69,6 +71,7 @@ router.patch("/agencies/:id", async (req, res, next): Promise<void> => {
     if (value !== null && value !== undefined) cleanData[key] = value;
   }
   try {
+    req.log.info({ agencyId: params.data.id }, "Updating agency");
     const [agency] = await db
       .update(agenciesTable)
       .set(cleanData)
@@ -91,6 +94,7 @@ router.post("/agencies/:id/regenerate-webhook-secret", async (req, res, next): P
     return;
   }
   try {
+    req.log.info({ agencyId: params.data.id }, "Regenerating webhook secret");
     const newSecret = randomBytes(32).toString("hex");
     const [agency] = await db
       .update(agenciesTable)
@@ -114,6 +118,7 @@ router.post("/agencies/:id/regenerate-api-key", async (req, res, next): Promise<
     return;
   }
   try {
+    req.log.info({ agencyId: params.data.id }, "Regenerating API key");
     const newKey = randomBytes(32).toString("hex");
     const [agency] = await db
       .update(agenciesTable)
@@ -137,6 +142,7 @@ router.delete("/agencies/:id", async (req, res, next): Promise<void> => {
     return;
   }
   try {
+    req.log.info({ agencyId: params.data.id }, "Deleting agency");
     await db.delete(agenciesTable).where(eq(agenciesTable.id, params.data.id));
     res.sendStatus(204);
   } catch (err) {

@@ -36,6 +36,7 @@ router.post("/config/nationalities", async (req, res, next): Promise<void> => {
     return;
   }
   try {
+    req.log.info({ agencyId: parsed.data.agencyId, label: parsed.data.label }, "Adding nationality");
     const [item] = await db.insert(configItemsTable).values(parsed.data).returning();
     res.status(201).json(item);
   } catch (err) {
@@ -50,6 +51,7 @@ router.delete("/config/nationalities/:id", async (req, res, next): Promise<void>
     return;
   }
   try {
+    req.log.info({ configItemId: params.data.id }, "Deleting nationality");
     await db.delete(configItemsTable).where(and(eq(configItemsTable.id, params.data.id), eq(configItemsTable.type, "nationality")));
     res.sendStatus(204);
   } catch (err) {
@@ -78,6 +80,7 @@ router.post("/config/languages", async (req, res, next): Promise<void> => {
     return;
   }
   try {
+    req.log.info({ agencyId: parsed.data.agencyId, label: parsed.data.label }, "Adding language");
     const [item] = await db.insert(configItemsTable).values(parsed.data).returning();
     res.status(201).json(item);
   } catch (err) {
@@ -92,6 +95,7 @@ router.delete("/config/languages/:id", async (req, res, next): Promise<void> => 
     return;
   }
   try {
+    req.log.info({ configItemId: params.data.id }, "Deleting language");
     await db.delete(configItemsTable).where(and(eq(configItemsTable.id, params.data.id), eq(configItemsTable.type, "language")));
     res.sendStatus(204);
   } catch (err) {
@@ -120,6 +124,7 @@ router.post("/config/medical-services", async (req, res, next): Promise<void> =>
     return;
   }
   try {
+    req.log.info({ agencyId: parsed.data.agencyId, label: parsed.data.label }, "Adding medical service");
     const [item] = await db.insert(configItemsTable).values(parsed.data).returning();
     res.status(201).json(item);
   } catch (err) {
@@ -134,6 +139,7 @@ router.delete("/config/medical-services/:id", async (req, res, next): Promise<vo
     return;
   }
   try {
+    req.log.info({ configItemId: params.data.id }, "Deleting medical service");
     await db.delete(configItemsTable).where(and(eq(configItemsTable.id, params.data.id), eq(configItemsTable.type, "medical_service")));
     res.sendStatus(204);
   } catch (err) {

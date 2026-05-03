@@ -58,6 +58,7 @@ router.post("/appointments", async (req, res, next): Promise<void> => {
     return;
   }
   try {
+    req.log.info({ customerId: parsed.data.customerId, surgeonId: parsed.data.surgeonId, eventId: parsed.data.eventId }, "Creating appointment");
     const [appt] = await db
       .insert(appointmentsTable)
       .values({ ...parsed.data, status: parsed.data.status ?? "scheduled" })
@@ -67,6 +68,7 @@ router.post("/appointments", async (req, res, next): Promise<void> => {
     const [surgeon]  = await db.select().from(surgeonsTable).where(eq(surgeonsTable.id, appt.surgeonId));
     const [event]    = await db.select().from(eventsTable).where(eq(eventsTable.id, appt.eventId));
 
+    req.log.info({ appointmentId: appt.id }, "Appointment created");
     res.status(201).json({ ...appt, customer, surgeon, event });
 
     // Fire-and-forget emails + webhook — after response sent
@@ -156,6 +158,7 @@ router.patch("/appointments/:id", async (req, res, next): Promise<void> => {
     return;
   }
   try {
+    req.log.info({ appointmentId: params.data.id }, "Updating appointment");
     const [oldAppt] = await db.select().from(appointmentsTable).where(eq(appointmentsTable.id, params.data.id));
 
     const cleanData: Record<string, unknown> = {};
@@ -253,6 +256,7 @@ router.delete("/appointments/:id", async (req, res, next): Promise<void> => {
     return;
   }
   try {
+    req.log.info({ appointmentId: params.data.id }, "Deleting appointment");
     await db.delete(appointmentsTable).where(eq(appointmentsTable.id, params.data.id));
     res.sendStatus(204);
   } catch (err) {

@@ -38,6 +38,7 @@ router.post("/users/me/sync", async (req, res, next): Promise<void> => {
   }
   const { clerkId, email, firstName, lastName } = parsed.data;
   try {
+    req.log.info({ clerkId }, "Syncing user");
     const [existing] = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId));
     if (existing) {
       const [updated] = await db
@@ -109,6 +110,7 @@ router.patch("/users/:id", async (req, res, next): Promise<void> => {
     if (value !== null && value !== undefined) cleanData[key] = value;
   }
   try {
+    req.log.info({ userId: params.data.id }, "Updating user");
     const [user] = await db
       .update(usersTable)
       .set(cleanData)

@@ -10,6 +10,7 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { requestContextMiddleware } from "./middlewares/requestContext";
 
 const app: Express = express();
 
@@ -47,6 +48,7 @@ app.use(
   })),
 );
 
+app.use(requestContextMiddleware);
 app.use("/api", router);
 
 // JSON 404 for any /api route that did not match

@@ -43,7 +43,9 @@ router.post("/customers", async (req, res, next): Promise<void> => {
     return;
   }
   try {
+    req.log.info({ agencyId: parsed.data.agencyId }, "Creating customer");
     const [customer] = await db.insert(customersTable).values(parsed.data).returning();
+    req.log.info({ customerId: customer.id, agencyId: customer.agencyId }, "Customer created");
     res.status(201).json(customer);
 
     // Fire-and-forget: send branded welcome email after response is sent
@@ -109,6 +111,7 @@ router.patch("/customers/:id", async (req, res, next): Promise<void> => {
     if (value !== null && value !== undefined) cleanData[key] = value;
   }
   try {
+    req.log.info({ customerId: params.data.id }, "Updating customer");
     const [customer] = await db
       .update(customersTable)
       .set(cleanData)
@@ -131,6 +134,7 @@ router.delete("/customers/:id", async (req, res, next): Promise<void> => {
     return;
   }
   try {
+    req.log.info({ customerId: params.data.id }, "Deleting customer");
     await db.delete(customersTable).where(eq(customersTable.id, params.data.id));
     res.sendStatus(204);
   } catch (err) {
@@ -145,6 +149,7 @@ router.post("/customers/:id/send-declaration-reminder", async (req, res, next): 
     return;
   }
   try {
+    req.log.info({ customerId: params.data.id }, "Sending declaration reminder");
     const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, params.data.id));
     if (!customer) {
       res.status(404).json({ error: "Customer not found" });

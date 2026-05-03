@@ -77,11 +77,13 @@ router.post("/public/customers", async (req, res, next): Promise<void> => {
       return;
     }
 
+    req.log.info({ agencyId: agency.id }, "Registering public customer");
     const [customer] = await db
       .insert(customersTable)
       .values({ ...parsed.data, agencyId: agency.id })
       .returning();
 
+    req.log.info({ customerId: customer.id, agencyId: agency.id }, "Public customer registered");
     res.status(201).json(customer);
 
     // Fire-and-forget: email + webhook after response

@@ -43,7 +43,9 @@ router.post("/consultation-records", async (req, res, next): Promise<void> => {
     return;
   }
   try {
+    req.log.info({ appointmentId: parsed.data.appointmentId, surgeonId: parsed.data.surgeonId ?? null }, "Creating consultation record");
     const [record] = await db.insert(consultationRecordsTable).values({ ...parsed.data, status: "in_progress" }).returning();
+    req.log.info({ consultationId: record.id }, "Consultation record created");
     res.status(201).json(record);
   } catch (err) {
     next(err);
@@ -86,6 +88,7 @@ router.patch("/consultation-records/:id", async (req, res, next): Promise<void> 
     if (value !== null && value !== undefined) cleanData[key] = value;
   }
   try {
+    req.log.info({ consultationId: params.data.id }, "Updating consultation record");
     const [record] = await db
       .update(consultationRecordsTable)
       .set(cleanData)
@@ -109,6 +112,7 @@ router.post("/consultation-records/:id/complete", async (req, res, next): Promis
     return;
   }
   try {
+    req.log.info({ consultationId: id }, "Completing consultation record");
     const [record] = await db
       .update(consultationRecordsTable)
       .set({ status: "completed", completedAt: new Date().toISOString() })
@@ -366,10 +370,12 @@ router.post("/consultation-records/:recordId/media", async (req, res, next): Pro
     return;
   }
   try {
+    req.log.info({ consultationId: params.data.recordId, mediaType: parsed.data.mediaType }, "Adding consultation media");
     const [media] = await db.insert(consultationMediaTable).values({
       ...parsed.data,
       consultationRecordId: params.data.recordId,
     }).returning();
+    req.log.info({ mediaId: media.id, consultationId: params.data.recordId }, "Consultation media added");
     res.status(201).json(media);
   } catch (err) {
     next(err);
@@ -383,6 +389,7 @@ router.delete("/consultation-records/:recordId/media/:id", async (req, res, next
     return;
   }
   try {
+    req.log.info({ mediaId: params.data.id, consultationId: params.data.recordId }, "Deleting consultation media");
     await db.delete(consultationMediaTable)
       .where(and(
         eq(consultationMediaTable.id, params.data.id),

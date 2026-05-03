@@ -19,6 +19,7 @@ import {
   Printer,
   Search,
   X,
+  ArrowUp,
 } from "lucide-react";
 
 // ─── Guide structure ──────────────────────────────────────────────────────────
@@ -434,6 +435,13 @@ export default function GuidePage() {
   const { t, i18n } = useTranslation();
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<RoleKey>("appOwner");
+  const [showTop, setShowTop] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 320);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const handleTabChange = useCallback((val: string) => {
     setActiveTab(val as RoleKey);
@@ -619,6 +627,17 @@ export default function GuidePage() {
           </div>
         )}
       </div>
+
+      {/* Back-to-top button */}
+      <button
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        aria-label="Back to top"
+        className={`guide-no-print fixed bottom-6 right-6 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white shadow-lg transition-all duration-200 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 ${
+          showTop ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"
+        }`}
+      >
+        <ArrowUp className="h-4 w-4" />
+      </button>
 
       {/* Footer */}
       <footer className="border-t bg-white mt-12">

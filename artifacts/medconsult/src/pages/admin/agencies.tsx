@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Plus, CheckCircle2, AlertTriangle, XCircle, Upload, X, ImageIcon, Loader2, Send, FlaskConical, ExternalLink } from "lucide-react";
+import { Plus, CheckCircle2, AlertTriangle, XCircle, Upload, X, ImageIcon, Loader2, Send, FlaskConical, ExternalLink, Search } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -502,7 +502,19 @@ type AgencyFormValues = z.infer<typeof agencySchema>;
 export default function AgenciesList() {
   const { data: agencies, isLoading } = useListAgencies();
   const { data: emailStats } = useGetEmailStats();
+  const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+
+  const filteredAgencies = query.trim()
+    ? (agencies ?? []).filter((a) => {
+        const q = query.toLowerCase();
+        return (
+          a.name.toLowerCase().includes(q) ||
+          (a.email ?? "").toLowerCase().includes(q) ||
+          (a.website ?? "").toLowerCase().includes(q)
+        );
+      })
+    : (agencies ?? []);
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const queryClient = useQueryClient();
@@ -572,8 +584,25 @@ export default function AgenciesList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <h2 className="text-2xl font-bold tracking-tight">Agencies</h2>
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name, email or website…"
+            className="pl-8"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button onClick={openCreate}>
@@ -765,7 +794,13 @@ export default function AgenciesList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                agencies?.map((agency) => (
+                filteredAgencies.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                      {query ? `No agencies match "${query}"` : "No agencies yet"}
+                    </TableCell>
+                  </TableRow>
+                ) : filteredAgencies.map((agency) => (
                   <TableRow key={agency.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">

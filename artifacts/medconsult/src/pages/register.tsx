@@ -42,6 +42,7 @@ export default function Register() {
   const search = useSearch();
   const { toast } = useToast();
   const [isSuccess, setIsSuccess] = useState(false);
+  const [patientName, setPatientName] = useState("");
 
   const params = new URLSearchParams(search);
   const eventIdParam = params.get("eventId");
@@ -88,6 +89,7 @@ export default function Register() {
 
     createCustomer.mutate({ data: { ...data, agencyId } }, {
       onSuccess: () => {
+        setPatientName(values.firstName);
         setIsSuccess(true);
       },
       onError: (err) => {
@@ -97,20 +99,121 @@ export default function Register() {
   };
 
   if (isSuccess) {
+    const fg = agency?.primaryColor
+      ? (parseInt(agency.primaryColor.slice(1, 3), 16) * 0.299 +
+         parseInt(agency.primaryColor.slice(3, 5), 16) * 0.587 +
+         parseInt(agency.primaryColor.slice(5, 7), 16) * 0.114) / 255 > 0.55
+        ? "#111827" : "#ffffff"
+      : "#ffffff";
+
     return (
-      <div className="min-h-[100dvh] bg-slate-50 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full border-green-200">
-          <CardContent className="pt-12 pb-8 px-8 text-center space-y-6">
-            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-              <CheckCircle2 className="h-8 w-8 text-green-600" />
+      <div className="min-h-[100dvh] flex flex-col bg-slate-50">
+        {/* Branded hero band */}
+        <div className="py-10 px-4 text-center" style={{ backgroundColor: brandColor }}>
+          <div className="max-w-md mx-auto space-y-4">
+            {/* Agency logo or initial */}
+            {agency?.logoUrl ? (
+              <div className="mx-auto w-20 h-20 rounded-2xl bg-white/10 border border-white/20 overflow-hidden flex items-center justify-center shadow-lg">
+                <img
+                  src={agency.logoUrl}
+                  alt={agency.name}
+                  className="w-full h-full object-contain p-1"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              </div>
+            ) : (
+              <div
+                className="mx-auto w-20 h-20 rounded-2xl border-2 border-white/30 flex items-center justify-center text-4xl font-extrabold shadow-lg"
+                style={{ backgroundColor: `${brandColor}cc`, color: fg }}
+              >
+                {agency?.name?.[0]?.toUpperCase() ?? "M"}
+              </div>
+            )}
+            <div style={{ color: fg }}>
+              <p className="text-sm font-medium opacity-75 uppercase tracking-widest mb-1">
+                {agency?.name ?? "MedConsult"}
+              </p>
+              <h1 className="text-3xl font-bold">
+                Welcome{patientName ? `, ${patientName}` : ""}!
+              </h1>
             </div>
-            <h2 className="text-2xl font-bold text-slate-900">Registration Complete</h2>
-            <p className="text-muted-foreground">Your profile has been created successfully. You can now access your portal to book appointments and fill out necessary forms.</p>
-            <Button className="w-full mt-4" onClick={() => setLocation("/portal")}>
-              Go to Portal <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* Confirmation card */}
+        <div className="flex-1 flex items-start justify-center px-4 py-10">
+          <div className="max-w-md w-full space-y-6">
+            <Card className="border-0 shadow-lg overflow-hidden">
+              {/* Top accent stripe */}
+              <div className="h-1 w-full" style={{ backgroundColor: brandColor }} />
+              <CardContent className="pt-8 pb-8 px-8 text-center space-y-5">
+                {/* Success icon */}
+                <div
+                  className="mx-auto w-14 h-14 rounded-full flex items-center justify-center shadow-sm"
+                  style={{ backgroundColor: `${brandColor}18` }}
+                >
+                  <CheckCircle2 className="h-7 w-7" style={{ color: brandColor }} />
+                </div>
+
+                <div className="space-y-2">
+                  <h2 className="text-xl font-bold text-slate-900">Registration Complete</h2>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    Your patient profile has been created with{" "}
+                    <span className="font-semibold text-slate-700">{agency?.name ?? "us"}</span>.
+                    You can now book consultations, complete your health questionnaires, and manage your appointments — all in one place.
+                  </p>
+                </div>
+
+                <div className="pt-2 space-y-3">
+                  <Button
+                    className="w-full font-semibold"
+                    size="lg"
+                    onClick={() => setLocation("/portal")}
+                    style={{ backgroundColor: brandColor, borderColor: brandColor, color: fg }}
+                  >
+                    Go to My Portal <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                  {eventId && (
+                    <Button
+                      variant="ghost"
+                      className="w-full text-sm"
+                      onClick={() => setLocation(`/events/${eventId}`)}
+                    >
+                      ← Back to event
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* What's next checklist */}
+            <div className="rounded-xl border bg-white p-5 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">What's next</p>
+              {[
+                "Sign in to your patient portal",
+                "Book your consultation appointment",
+                "Complete your pre-consultation questionnaire",
+                "Attend your consultation with your surgeon",
+              ].map((step, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <div
+                    className="mt-0.5 h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                    style={{ backgroundColor: `${brandColor}18`, color: brandColor }}
+                  >
+                    {i + 1}
+                  </div>
+                  <span className="text-sm text-slate-600">{step}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <footer className="border-t py-5 px-4 text-center text-xs text-muted-foreground bg-white">
+          {agency?.name ?? "MedConsult"} — Secure patient registration
+          {agency?.email && <span> · {agency.email}</span>}
+        </footer>
       </div>
     );
   }

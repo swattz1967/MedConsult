@@ -164,6 +164,19 @@ export default function Register() {
                   </p>
                 </div>
 
+                {/* Email sent notice */}
+                <div
+                  className="flex items-start gap-3 rounded-lg px-4 py-3 text-left text-sm"
+                  style={{ backgroundColor: `${brandColor}12`, border: `1px solid ${brandColor}30` }}
+                >
+                  <svg className="mt-0.5 h-4 w-4 shrink-0" style={{ color: brandColor }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <p style={{ color: brandColor }} className="font-medium leading-snug">
+                    A welcome email is on its way to your inbox with your portal link and next steps.
+                  </p>
+                </div>
+
                 <div className="pt-2 space-y-3">
                   <Button
                     className="w-full font-semibold"

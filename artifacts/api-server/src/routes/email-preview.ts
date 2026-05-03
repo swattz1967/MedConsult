@@ -80,10 +80,12 @@ router.post("/email/preview", async (req, res): Promise<void> => {
   try {
     switch (templateType) {
       case "registration_welcome":
-        await sendRegistrationWelcome(
-          { customerId: 9999, customerName: "Alex Johnson", customerEmail: recipientEmail },
-          agencyBranding,
-        );
+        await sendRegistrationWelcome({
+          customerId: 9999,
+          customerName: "Alex Johnson",
+          customerEmail: recipientEmail,
+          agency: agencyBranding,
+        });
         break;
 
       case "booking_confirmation":

@@ -20,22 +20,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { MailCheck, ChevronLeft, ChevronRight, AlertCircle, CheckCircle2 } from "lucide-react";
+import { MailCheck, ChevronLeft, ChevronRight, AlertCircle, CheckCircle2, Download } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
+const EXPORT_LIMIT = 10_000;
 
 const TEMPLATE_LABELS: Record<string, string> = {
-  registration_welcome:   "Registration Welcome",
-  booking_confirmation:   "Booking Confirmation",
-  new_booking_alert:      "New Booking Alert",
-  reschedule_notification:"Reschedule Notification",
-  declaration_reminder:   "Declaration Reminder",
-  status_confirmed:       "Status: Confirmed",
-  status_cancelled:       "Status: Cancelled",
-  status_completed:       "Status: Completed",
-  status_no_show:         "Status: No-show",
+  registration_welcome:    "Registration Welcome",
+  booking_confirmation:    "Booking Confirmation",
+  new_booking_alert:       "New Booking Alert",
+  reschedule_notification: "Reschedule Notification",
+  declaration_reminder:    "Declaration Reminder",
+  status_confirmed:        "Status: Confirmed",
+  status_cancelled:        "Status: Cancelled",
+  status_completed:        "Status: Completed",
+  status_no_show:          "Status: No-show",
 };
 
 const RECIPIENT_LABELS: Record<string, string> = {
@@ -49,11 +50,91 @@ const TEMPLATE_OPTIONS = [
   ...Object.entries(TEMPLATE_LABELS).map(([value, label]) => ({ value, label })),
 ];
 
+// ─── CSV helpers ──────────────────────────────────────────────────────────────
+
+function csvEscape(value: string | null | undefined): string {
+  const s = value == null ? "" : String(value);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function buildCsvUrl(
+  agencyId: number,
+  statusFilter: string,
+  templateFilter: string,
+): string {
+  const params = new URLSearchParams({
+    agencyId: String(agencyId),
+    limit: String(EXPORT_LIMIT),
+    page: "1",
+  });
+  if (statusFilter) params.set("status", statusFilter);
+  if (templateFilter) params.set("templateType", templateFilter);
+  return `/api/email-logs?${params.toString()}`;
+}
+
+interface EmailLogRow {
+  id: number;
+  sentAt: string;
+  templateType: string;
+  recipientEmail: string;
+  recipientType: string;
+  subject: string;
+  status: string;
+  errorMessage?: string | null;
+  agencyId?: number | null;
+  appointmentId?: number | null;
+  customerId?: number | null;
+}
+
+function rowsToCsv(rows: EmailLogRow[]): string {
+  const header = [
+    "ID", "Date", "Time", "Template", "Recipient Email",
+    "Recipient Type", "Subject", "Status", "Error", "Agency ID",
+    "Appointment ID", "Customer ID",
+  ].join(",");
+
+  const lines = rows.map((r) => {
+    const d = new Date(r.sentAt);
+    return [
+      r.id,
+      csvEscape(format(d, "yyyy-MM-dd")),
+      csvEscape(format(d, "HH:mm:ss")),
+      csvEscape(TEMPLATE_LABELS[r.templateType] ?? r.templateType),
+      csvEscape(r.recipientEmail),
+      csvEscape(RECIPIENT_LABELS[r.recipientType] ?? r.recipientType),
+      csvEscape(r.subject),
+      csvEscape(r.status),
+      csvEscape(r.errorMessage),
+      r.agencyId ?? "",
+      r.appointmentId ?? "",
+      r.customerId ?? "",
+    ].join(",");
+  });
+
+  return [header, ...lines].join("\r\n");
+}
+
+function downloadCsv(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Page component ───────────────────────────────────────────────────────────
+
 export default function AdminEmailLogs() {
   const { agencyId } = useAgency();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
   const [templateFilter, setTemplateFilter] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
 
   const { data, isLoading } = useListEmailLogs({
     agencyId: agencyId ?? 0,
@@ -72,6 +153,25 @@ export default function AdminEmailLogs() {
     setPage(1);
   };
 
+  async function handleExport() {
+    if (!agencyId) return;
+    setIsExporting(true);
+    try {
+      const url = buildCsvUrl(agencyId, statusFilter, templateFilter);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as { logs: EmailLogRow[] };
+      const csv = rowsToCsv(json.logs ?? []);
+      const stamp = format(new Date(), "yyyy-MM-dd");
+      const parts = ["email-log", stamp];
+      if (statusFilter) parts.push(statusFilter);
+      if (templateFilter) parts.push(templateFilter.replace(/_/g, "-"));
+      downloadCsv(csv, `${parts.join("_")}.csv`);
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div>
@@ -81,7 +181,7 @@ export default function AdminEmailLogs() {
         </p>
       </div>
 
-      {/* Filters */}
+      {/* Filters + export */}
       <div className="flex flex-wrap gap-3 items-center">
         <Select value={statusFilter || "all"} onValueChange={handleFilterChange(setStatusFilter)}>
           <SelectTrigger className="w-36">
@@ -107,9 +207,20 @@ export default function AdminEmailLogs() {
           </SelectContent>
         </Select>
 
-        <span className="text-sm text-muted-foreground ml-auto">
+        <span className="text-sm text-muted-foreground">
           {total.toLocaleString()} email{total !== 1 ? "s" : ""}
         </span>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto gap-1.5"
+          disabled={isExporting || total === 0}
+          onClick={handleExport}
+        >
+          <Download className="h-4 w-4" />
+          {isExporting ? "Exporting…" : "Export CSV"}
+        </Button>
       </div>
 
       <Card>

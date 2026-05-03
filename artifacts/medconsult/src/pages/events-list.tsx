@@ -16,7 +16,7 @@ export default function EventsList() {
       <header className="border-b bg-white">
         <div className="max-w-5xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary tracking-tight">
-            <div className="h-8 w-8 bg-primary rounded flex items-center justify-center text-primary-foreground font-bold">M</div>
+            <div className="h-8 w-8 bg-primary rounded flex items-center justify-center text-primary-foreground font-bold text-sm">MC</div>
             MedConsult
           </Link>
         </div>

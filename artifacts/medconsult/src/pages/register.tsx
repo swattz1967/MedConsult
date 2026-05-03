@@ -5,7 +5,8 @@ import {
   useListNationalities,
   useListLanguages,
   useListMedicalServices,
-  useGetEvent
+  useGetEvent,
+  useListAgencies,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,9 @@ export default function Register() {
   const { data: event } = useGetEvent(eventId!);
   const agencyId = event?.agencyId ?? 1;
 
-  const agency = { primaryColor: "#1a6b5c" };
+  const { data: agencies } = useListAgencies();
+  const agency = agencies?.find(a => a.id === agencyId);
+  const brandColor = agency?.primaryColor ?? "#1a6b5c";
 
   const createCustomer = useCreateCustomer();
   const { data: nationalities } = useListNationalities();
@@ -115,12 +118,23 @@ export default function Register() {
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl mb-8">
-        <Link href="/" className="flex justify-center items-center gap-2 font-bold text-2xl tracking-tight" style={{ color: agency.primaryColor }}>
-          <div
-            className="h-10 w-10 rounded flex items-center justify-center text-white font-bold"
-            style={{ backgroundColor: agency.primaryColor }}
-          >M</div>
-          MedConsult
+        <Link href="/" className="flex justify-center items-center gap-2 font-bold text-2xl tracking-tight" style={{ color: brandColor }}>
+          {agency?.logoUrl ? (
+            <img
+              src={agency.logoUrl}
+              alt={agency.name}
+              className="h-10 w-10 rounded object-contain bg-white border shadow-sm"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <div
+              className="h-10 w-10 rounded flex items-center justify-center font-bold text-white"
+              style={{ backgroundColor: brandColor }}
+            >
+              {agency?.name?.[0]?.toUpperCase() ?? "M"}
+            </div>
+          )}
+          {agency?.name ?? "MedConsult"}
         </Link>
       </div>
 
@@ -265,7 +279,7 @@ export default function Register() {
 
               <div className="pt-6">
                 <Button type="submit" className="w-full" size="lg" disabled={createCustomer.isPending}
-                  style={{ backgroundColor: agency.primaryColor, borderColor: agency.primaryColor }}>
+                  style={{ backgroundColor: brandColor, borderColor: brandColor }}>
                   {createCustomer.isPending ? "Registering..." : "Complete Registration"}
                 </Button>
               </div>

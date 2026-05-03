@@ -4,6 +4,20 @@ import { db, emailLogsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
+router.get("/email-stats", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      agencyId:   emailLogsTable.agencyId,
+      total:      sql<number>`count(*)::int`,
+      sent:       sql<number>`count(case when ${emailLogsTable.status} = 'sent'   then 1 end)::int`,
+      failed:     sql<number>`count(case when ${emailLogsTable.status} = 'failed' then 1 end)::int`,
+      lastSentAt: sql<string | null>`max(${emailLogsTable.sentAt})`,
+    })
+    .from(emailLogsTable)
+    .groupBy(emailLogsTable.agencyId);
+  res.json(rows);
+});
+
 router.get("/email-logs", async (req, res): Promise<void> => {
   const agencyId = Number(req.query.agencyId);
   if (!agencyId || isNaN(agencyId)) {

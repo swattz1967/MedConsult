@@ -878,6 +878,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/ReminderSettings"
 
+  # --- EMAIL STATS ---
+  /email-stats:
+    get:
+      operationId: getEmailStats
+      tags: [emailLogs]
+      summary: Aggregate email delivery stats grouped by agency
+      responses:
+        "200":
+          description: Per-agency email delivery stats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgencyEmailStats"
+
   # --- EMAIL LOGS ---
   /email-logs:
     get:
@@ -2704,6 +2720,26 @@ components:
         - subject
         - status
         - sentAt
+
+    AgencyEmailStats:
+      type: object
+      properties:
+        agencyId:
+          type: ["integer", "null"]
+        total:
+          type: integer
+        sent:
+          type: integer
+        failed:
+          type: integer
+        lastSentAt:
+          type: ["string", "null"]
+      required:
+        - agencyId
+        - total
+        - sent
+        - failed
+        - lastSentAt
 
     EmailLogsResponse:
       type: object

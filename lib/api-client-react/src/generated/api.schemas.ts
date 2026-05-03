@@ -897,6 +897,16 @@ export interface EmailLog {
   sentAt: string;
 }
 
+export interface AgencyEmailStats {
+  /** @nullable */
+  agencyId: number | null;
+  total: number;
+  sent: number;
+  failed: number;
+  /** @nullable */
+  lastSentAt: string | null;
+}
+
 export interface EmailLogsResponse {
   logs: EmailLog[];
   total: number;

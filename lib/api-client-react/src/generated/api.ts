@@ -18,6 +18,7 @@ import type {
 
 import type {
   Agency,
+  AgencyEmailStats,
   Appointment,
   ConfigItem,
   ConsultationMedia,
@@ -3725,6 +3726,81 @@ export const useUpsertReminderSettings = <
 > => {
   return useMutation(getUpsertReminderSettingsMutationOptions(options));
 };
+
+/**
+ * @summary Aggregate email delivery stats grouped by agency
+ */
+export const getGetEmailStatsUrl = () => {
+  return `/api/email-stats`;
+};
+
+export const getEmailStats = async (
+  options?: RequestInit,
+): Promise<AgencyEmailStats[]> => {
+  return customFetch<AgencyEmailStats[]>(getGetEmailStatsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetEmailStatsQueryKey = () => {
+  return [`/api/email-stats`] as const;
+};
+
+export const getGetEmailStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEmailStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEmailStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetEmailStatsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmailStats>>> = ({
+    signal,
+  }) => getEmailStats({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getEmailStats>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetEmailStatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEmailStats>>
+>;
+export type GetEmailStatsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Aggregate email delivery stats grouped by agency
+ */
+
+export function useGetEmailStats<
+  TData = Awaited<ReturnType<typeof getEmailStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEmailStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetEmailStatsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List email activity logs for an agency

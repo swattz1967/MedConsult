@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useListAgencies, useCreateAgency, useUpdateAgency, getListAgenciesQueryKey } from "@workspace/api-client-react";
+import { useListAgencies, useCreateAgency, useUpdateAgency, getListAgenciesQueryKey, useGetEmailStats } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -498,6 +498,7 @@ type AgencyFormValues = z.infer<typeof agencySchema>;
 
 export default function AgenciesList() {
   const { data: agencies, isLoading } = useListAgencies();
+  const { data: emailStats } = useGetEmailStats();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -729,6 +730,7 @@ export default function AgenciesList() {
                 <TableHead>Phone</TableHead>
                 <TableHead>Currency</TableHead>
                 <TableHead>Colours</TableHead>
+                <TableHead>Emails</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -802,6 +804,31 @@ export default function AgenciesList() {
                           <div className="h-5 w-5 rounded-full border border-dashed bg-muted" title="No secondary colour" />
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const s = emailStats?.find((e) => e.agencyId === agency.id);
+                        if (!s) return <span className="text-muted-foreground text-xs">—</span>;
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 px-2 py-0.5 text-xs font-medium" title="Sent">
+                                ✓ {s.sent}
+                              </span>
+                              {s.failed > 0 && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-2 py-0.5 text-xs font-medium" title="Failed">
+                                  ✕ {s.failed}
+                                </span>
+                              )}
+                            </div>
+                            {s.lastSentAt && (
+                              <span className="text-[10px] text-muted-foreground leading-none" title={new Date(s.lastSentAt).toLocaleString()}>
+                                Last: {new Date(s.lastSentAt).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">

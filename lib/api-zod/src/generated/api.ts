@@ -1061,6 +1061,18 @@ export const UpsertReminderSettingsResponse = zod.object({
 });
 
 /**
+ * @summary Aggregate email delivery stats grouped by agency
+ */
+export const GetEmailStatsResponseItem = zod.object({
+  agencyId: zod.number().nullable(),
+  total: zod.number(),
+  sent: zod.number(),
+  failed: zod.number(),
+  lastSentAt: zod.string().nullable(),
+});
+export const GetEmailStatsResponse = zod.array(GetEmailStatsResponseItem);
+
+/**
  * @summary List email activity logs for an agency
  */
 export const ListEmailLogsQueryParams = zod.object({

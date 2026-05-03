@@ -74,6 +74,19 @@ pnpm workspace monorepo using TypeScript.
 - Agency switcher shown in sidebar when multiple agencies exist
 - Sidebar shows agency logo (if set) or name initial + truncated name
 
+## Per-Agency Branding
+
+- `AgencyContext` injects `<style id="mc-brand-vars">` into `document.head` on agency change
+- CSS variables injected: `--primary`, `--primary-foreground`, `--sidebar-primary`, `--sidebar-primary-foreground`, `--ring`, `--brand-primary`, `--brand-secondary`, `--brand-secondary-hsl`
+- Utilities in `src/lib/color.ts`: `hexToHslString`, `isLightColor`, `isValidHex`, `getRelativeLuminance`, `getContrastRatio`, `getWcagLevel`
+- Agencies page (`src/pages/admin/agencies.tsx`) has full brand editor:
+  - `LogoUpload` — drag-and-drop/click-to-upload via presigned URL to object storage; shows preview + Replace/Remove
+  - `ColorPickerInput` — native colour picker swatch + hex input + 10 presets
+  - `ContrastBadge` — WCAG 2.1 contrast ratio checker with live "Aa" preview and AA/AAA/Fail badge
+  - `BrandPreview` — live card showing logo (or initial avatar) + agency name + colour bar
+- Object storage: `lib/object-storage-web` (composite lib) — `useUpload` hook for presigned URL two-step upload
+- Logos served at `/api/storage/objects/<path>`; `logoUrl` stored as the full `/api/storage/objects/…` path
+
 ## PDF Branding
 
 - Consultation PDF route (`artifacts/api-server/src/routes/consultations.ts`) fetches agency from `event.agencyId`

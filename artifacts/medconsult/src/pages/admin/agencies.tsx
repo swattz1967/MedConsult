@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Plus, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
+import { Plus, CheckCircle2, AlertTriangle, XCircle, Upload, X, ImageIcon, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -16,6 +16,7 @@ import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { CURRENCY_OPTIONS } from "@/lib/currency";
 import { isValidHex, isLightColor, getContrastRatio, getWcagLevel } from "@/lib/color";
+import { useUpload } from "@workspace/object-storage-web";
 
 // ─── Preset colour palette ────────────────────────────────────────────────────
 
@@ -31,6 +32,108 @@ const COLOUR_PRESETS = [
   { hex: "#db2777", label: "Pink" },
   { hex: "#374151", label: "Slate" },
 ];
+
+// ─── Logo upload ─────────────────────────────────────────────────────────────
+
+interface LogoUploadProps {
+  value: string;
+  onChange: (url: string) => void;
+}
+
+function LogoUpload({ value, onChange }: LogoUploadProps) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const { uploadFile, isUploading } = useUpload({
+    onSuccess: (res) => {
+      const url = `/api/storage${res.objectPath}`;
+      onChange(url);
+    },
+    onError: () => {
+      toast({ title: "Upload failed", description: "Could not upload logo. Please try again.", variant: "destructive" });
+    },
+  });
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    await uploadFile(file);
+  };
+
+  return (
+    <div className="space-y-2">
+      {value ? (
+        <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+          <div className="h-12 w-12 rounded-lg border bg-white flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
+            <img
+              src={value}
+              alt="Agency logo"
+              className="h-full w-full object-contain"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">Logo uploaded</p>
+            <p className="text-xs text-muted-foreground truncate">{value.split("/").pop()}</p>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fileRef.current?.click()}
+              disabled={isUploading}
+              className="h-7 text-xs"
+            >
+              {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}
+              Replace
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onChange("")}
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+              title="Remove logo"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={isUploading}
+          className="w-full flex flex-col items-center justify-center gap-2 h-24 rounded-lg border-2 border-dashed border-input bg-muted/20 hover:bg-muted/40 hover:border-primary/40 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isUploading ? (
+            <>
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Uploading…</span>
+            </>
+          ) : (
+            <>
+              <ImageIcon className="h-6 w-6 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">
+                Click to upload logo <span className="font-medium text-foreground">PNG, JPG, SVG, WebP</span>
+              </span>
+            </>
+          )}
+        </button>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/png,image/jpeg,image/svg+xml,image/webp"
+        onChange={handleFile}
+        className="sr-only"
+        tabIndex={-1}
+      />
+    </div>
+  );
+}
 
 // ─── Contrast badge ───────────────────────────────────────────────────────────
 
@@ -159,10 +262,10 @@ function ColorPickerInput({ value, onChange, label, presets = false }: ColorPick
 
 // ─── Brand preview card ───────────────────────────────────────────────────────
 
-function BrandPreview({ name, primary, secondary }: { name: string; primary: string; secondary: string }) {
+function BrandPreview({ name, primary, secondary, logoUrl }: { name: string; primary: string; secondary: string; logoUrl?: string }) {
   const validP = isValidHex(primary);
   const validS = isValidHex(secondary);
-  if (!validP && !validS) return null;
+  if (!validP && !validS && !logoUrl) return null;
 
   const bgP = validP ? primary : "#e5e7eb";
   const fgP = validP ? (isLightColor(primary) ? "#111827" : "#ffffff") : "#374151";
@@ -174,13 +277,19 @@ function BrandPreview({ name, primary, secondary }: { name: string; primary: str
         Brand Preview
       </div>
       <div className="p-4 flex items-center gap-4">
-        {/* Avatar */}
-        <div
-          className="h-10 w-10 rounded-lg flex items-center justify-center text-base font-bold shrink-0 shadow-sm"
-          style={{ backgroundColor: bgP, color: fgP }}
-        >
-          {initial}
-        </div>
+        {/* Avatar / Logo */}
+        {logoUrl ? (
+          <div className="h-10 w-10 rounded-lg border bg-white flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
+            <img src={logoUrl} alt={name} className="h-full w-full object-contain" />
+          </div>
+        ) : (
+          <div
+            className="h-10 w-10 rounded-lg flex items-center justify-center text-base font-bold shrink-0 shadow-sm"
+            style={{ backgroundColor: bgP, color: fgP }}
+          >
+            {initial}
+          </div>
+        )}
 
         {/* Agency name */}
         <span className="font-semibold text-sm truncate flex-1" style={validP ? { color: primary } : {}}>
@@ -252,9 +361,10 @@ export default function AgenciesList() {
     },
   });
 
-  const watchName    = form.watch("name");
-  const watchPrimary = form.watch("primaryColor") ?? "";
+  const watchName     = form.watch("name");
+  const watchPrimary  = form.watch("primaryColor") ?? "";
   const watchSecondary = form.watch("secondaryColor") ?? "";
+  const watchLogoUrl  = form.watch("logoUrl") ?? "";
 
   const onSubmit = (values: AgencyFormValues) => {
     if (editingId) {
@@ -377,9 +487,11 @@ export default function AgenciesList() {
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="logoUrl" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Logo URL</FormLabel>
-                        <FormControl><Input {...field} type="url" placeholder="https://…" /></FormControl>
+                      <FormItem className="col-span-2">
+                        <FormLabel>Logo</FormLabel>
+                        <FormControl>
+                          <LogoUpload value={field.value ?? ""} onChange={field.onChange} />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )} />
@@ -433,6 +545,7 @@ export default function AgenciesList() {
                       name={watchName}
                       primary={watchPrimary}
                       secondary={watchSecondary}
+                      logoUrl={watchLogoUrl}
                     />
                   </div>
                 </div>

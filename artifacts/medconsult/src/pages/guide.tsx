@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -124,6 +124,13 @@ const ROLE_DOT: Record<RoleKey, string> = {
   customer:    "bg-rose-400",
 };
 
+const ROLE_BORDER_ACTIVE: Record<RoleKey, string> = {
+  appOwner:    "border-l-emerald-500",
+  bookingAdmin:"border-l-blue-500",
+  surgeon:     "border-l-violet-500",
+  customer:    "border-l-rose-500",
+};
+
 // ─── Print styles ─────────────────────────────────────────────────────────────
 
 const PRINT_STYLES = `
@@ -150,8 +157,110 @@ const PRINT_STYLES = `
   body { background: white !important; }
   .guide-page { background: white !important; }
   .guide-role-section { margin-bottom: 1rem; }
+  .guide-sidebar { display: none !important; }
 }
 `;
+
+// ─── Scroll helper ────────────────────────────────────────────────────────────
+
+function scrollToSection(id: string) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const headerOffset = 80;
+  const top = el.getBoundingClientRect().top + window.scrollY - headerOffset;
+  window.scrollTo({ top, behavior: "smooth" });
+}
+
+// ─── Active section tracker ───────────────────────────────────────────────────
+
+function useActiveSection(ids: string[]): string | null {
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (ids.length === 0) { setActiveId(null); return; }
+    const visible = new Map<string, boolean>();
+
+    const pick = () => {
+      const first = ids.find((id) => visible.get(id));
+      setActiveId(first ?? ids[0]);
+    };
+
+    const observers: IntersectionObserver[] = [];
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const obs = new IntersectionObserver(
+        ([entry]) => { visible.set(id, entry.isIntersecting); pick(); },
+        { rootMargin: "-15% 0px -65% 0px", threshold: 0 },
+      );
+      obs.observe(el);
+      observers.push(obs);
+    });
+
+    return () => observers.forEach((o) => o.disconnect());
+  }, [ids]);
+
+  return activeId;
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+
+interface SidebarProps {
+  role: RoleKey;
+  sections: SectionDef[];
+  activeId: string | null;
+}
+
+function GuideSidebar({ role, sections, activeId }: SidebarProps) {
+  const { t } = useTranslation();
+  const roleDef = GUIDE.find((g) => g.role === role)!;
+  const Icon = roleDef.icon;
+
+  return (
+    <nav className="guide-sidebar guide-no-print hidden lg:block">
+      <div className="sticky top-24">
+        {/* Role label */}
+        <div className="mb-3 flex items-center gap-1.5 px-2">
+          <Icon className={`h-3.5 w-3.5 shrink-0 ${roleDef.color}`} />
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider truncate">
+            {t(`guide.tabs.${role}`)}
+          </span>
+        </div>
+
+        {/* Section list */}
+        <ol className="space-y-0.5">
+          {sections.map(({ key }, idx) => {
+            const id = `${role}-${key}`;
+            const isActive = activeId === id;
+            return (
+              <li key={key}>
+                <button
+                  onClick={() => scrollToSection(id)}
+                  className={`w-full flex items-center gap-2.5 text-left rounded-lg px-2 py-2 text-sm transition-all group ${
+                    isActive
+                      ? `font-medium bg-white shadow-sm border-l-2 ${ROLE_BORDER_ACTIVE[role]} pl-[6px] text-gray-900`
+                      : "text-gray-500 hover:text-gray-800 hover:bg-gray-100 border-l-2 border-l-transparent pl-[6px]"
+                  }`}
+                >
+                  <span
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold transition-colors ${
+                      isActive ? `text-white ${ROLE_NUM_BG[role]}` : "bg-gray-200 text-gray-500 group-hover:bg-gray-300"
+                    }`}
+                  >
+                    {idx + 1}
+                  </span>
+                  <span className="truncate leading-snug">
+                    {t(`guide.${role}.${key}Title`)}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    </nav>
+  );
+}
 
 // ─── Search types ─────────────────────────────────────────────────────────────
 
@@ -184,7 +293,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
   return (
     <>
       {text.slice(0, idx)}
-      <mark className="bg-amber-200 text-amber-900 rounded-sm px-0.5 not-italic font-medium">
+      <mark className="bg-amber-200 text-amber-900 rounded-sm px-0.5 font-medium not-italic">
         {text.slice(idx, idx + query.length)}
       </mark>
       {text.slice(idx + query.length)}
@@ -192,7 +301,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
   );
 }
 
-// ─── Role content (used by tabs) ──────────────────────────────────────────────
+// ─── Role content ─────────────────────────────────────────────────────────────
 
 function RoleContent({ role, icon: Icon, sections }: RoleDef) {
   const { t } = useTranslation();
@@ -211,7 +320,11 @@ function RoleContent({ role, icon: Icon, sections }: RoleDef) {
       </div>
       <div className="space-y-5">
         {sections.map(({ key, items }, sectionIdx) => (
-          <div key={key} className="guide-section-card bg-white rounded-xl border p-5 shadow-sm">
+          <div
+            id={`${role}-${key}`}
+            key={key}
+            className="guide-section-card bg-white rounded-xl border p-5 shadow-sm scroll-mt-24"
+          >
             <div className="flex items-center gap-3 mb-4">
               <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${ROLE_NUM_BG[role]}`}>
                 {sectionIdx + 1}
@@ -235,7 +348,7 @@ function RoleContent({ role, icon: Icon, sections }: RoleDef) {
   );
 }
 
-// ─── Search results view ──────────────────────────────────────────────────────
+// ─── Search results ───────────────────────────────────────────────────────────
 
 function SearchResults({ hits, query }: { hits: SearchHit[]; query: string }) {
   const { t } = useTranslation();
@@ -252,7 +365,10 @@ function SearchResults({ hits, query }: { hits: SearchHit[]; query: string }) {
     );
   }
 
-  const totalItems = hits.reduce((acc, h) => acc + h.matchingItems.length + (h.titleMatch ? 1 : 0), 0);
+  const totalItems = hits.reduce(
+    (acc, h) => acc + h.matchingItems.length + (h.titleMatch ? 1 : 0),
+    0,
+  );
   const roleCount = new Set(hits.map((h) => h.role)).size;
 
   return (
@@ -263,7 +379,6 @@ function SearchResults({ hits, query }: { hits: SearchHit[]; query: string }) {
         {" "}&mdash;{" "}
         {roleCount} {roleCount === 1 ? t("guide.searchRole") : t("guide.searchRoles")}
       </p>
-
       <div className="space-y-4">
         {hits.map((hit) => {
           const roleDef = GUIDE.find((g) => g.role === hit.role)!;
@@ -273,7 +388,6 @@ function SearchResults({ hits, query }: { hits: SearchHit[]; query: string }) {
               key={`${hit.role}-${hit.sectionKey}`}
               className="guide-section-card bg-white rounded-xl border p-5 shadow-sm"
             >
-              {/* Role badge */}
               <div className="flex items-center gap-2 mb-3">
                 <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${ROLE_BADGE[hit.role]}`}>
                   <Icon className="h-3 w-3" />
@@ -284,23 +398,21 @@ function SearchResults({ hits, query }: { hits: SearchHit[]; query: string }) {
                   {t("guide.searchSection")} {hit.sectionIdx + 1}
                 </span>
               </div>
-
-              {/* Section title (highlighted if matched) */}
               <h3 className="font-semibold text-gray-900 text-base mb-3 flex items-center gap-2">
                 <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${ROLE_NUM_BG[hit.role]}`}>
                   {hit.sectionIdx + 1}
                 </span>
                 <HighlightText text={hit.title} query={hit.titleMatch ? query : ""} />
               </h3>
-
-              {/* Items — show matching ones highlighted, dim non-matching */}
               <ul className="space-y-2 pl-8">
                 {hit.allItems.map((item, i) => {
                   const isMatch = hit.matchingItems.includes(item);
                   return (
                     <li
                       key={i}
-                      className={`flex items-start gap-2 text-sm transition-opacity ${isMatch ? "text-gray-700" : "text-gray-300"}`}
+                      className={`flex items-start gap-2 text-sm transition-opacity ${
+                        isMatch ? "text-gray-700" : "text-gray-300"
+                      }`}
                     >
                       <span className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${isMatch ? ROLE_DOT[hit.role] : "bg-gray-200"}`} />
                       {isMatch ? <HighlightText text={item} query={query} /> : item}
@@ -321,29 +433,50 @@ function SearchResults({ hits, query }: { hits: SearchHit[]; query: string }) {
 export default function GuidePage() {
   const { t, i18n } = useTranslation();
   const [query, setQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<RoleKey>("appOwner");
 
-  // Build a flat search index from all translated content (re-built when language changes)
-  const index = useMemo<IndexEntry[]>(() => {
-    return GUIDE.flatMap(({ role, sections }) =>
-      sections.map(({ key, items }, sectionIdx) => ({
-        role,
-        sectionIdx,
-        sectionKey: key,
-        title: t(`guide.${role}.${key}Title`),
-        items: Array.from({ length: items }, (_, i) => t(`guide.${role}.${key}i${i + 1}`)),
-      }))
-    );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, i18n.language]);
+  const handleTabChange = useCallback((val: string) => {
+    setActiveTab(val as RoleKey);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
-  // Run search
+  // Active tab's section IDs for the observer
+  const sectionIds = useMemo(
+    () =>
+      GUIDE.find((g) => g.role === activeTab)!.sections.map(
+        (s) => `${activeTab}-${s.key}`,
+      ),
+    [activeTab],
+  );
+  const activeSection = useActiveSection(sectionIds);
+
+  // Search index — rebuilt when language changes
+  const index = useMemo<IndexEntry[]>(
+    () =>
+      GUIDE.flatMap(({ role, sections }) =>
+        sections.map(({ key, items }, sectionIdx) => ({
+          role,
+          sectionIdx,
+          sectionKey: key,
+          title: t(`guide.${role}.${key}Title`),
+          items: Array.from({ length: items }, (_, i) =>
+            t(`guide.${role}.${key}i${i + 1}`),
+          ),
+        })),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t, i18n.language],
+  );
+
   const searchHits = useMemo<SearchHit[]>(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
     return index
       .map((entry) => {
         const titleMatch = entry.title.toLowerCase().includes(q);
-        const matchingItems = entry.items.filter((item) => item.toLowerCase().includes(q));
+        const matchingItems = entry.items.filter((item) =>
+          item.toLowerCase().includes(q),
+        );
         return {
           role: entry.role,
           sectionIdx: entry.sectionIdx,
@@ -358,6 +491,8 @@ export default function GuidePage() {
   }, [index, query]);
 
   const isSearching = query.trim().length > 0;
+
+  const activeSections = GUIDE.find((g) => g.role === activeTab)!.sections;
 
   return (
     <div className="guide-page min-h-screen bg-gray-50">
@@ -376,13 +511,18 @@ export default function GuidePage() {
           <div className="guide-no-print flex items-center gap-3 shrink-0">
             <div className="flex items-center gap-2">
               <Globe className="h-4 w-4 text-muted-foreground" />
-              <Select value={i18n.language} onValueChange={(lng) => i18n.changeLanguage(lng)}>
+              <Select
+                value={i18n.language}
+                onValueChange={(lng) => i18n.changeLanguage(lng)}
+              >
                 <SelectTrigger className="h-8 w-40 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {LANGUAGES.map((l) => (
-                    <SelectItem key={l.code} value={l.code}>{l.label}</SelectItem>
+                    <SelectItem key={l.code} value={l.code}>
+                      {l.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -402,7 +542,7 @@ export default function GuidePage() {
         </div>
       </header>
 
-      {/* Hero + search bar */}
+      {/* Hero + search */}
       <div className="bg-white border-b">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">
@@ -412,7 +552,6 @@ export default function GuidePage() {
             {t("guide.pageSubtitle")}
           </p>
 
-          {/* Search input */}
           <div className="guide-no-print relative mt-6 max-w-xl">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
             <Input
@@ -437,30 +576,47 @@ export default function GuidePage() {
       {/* Main content */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         {isSearching ? (
-          // ── Search results ──
           <SearchResults hits={searchHits} query={query.trim()} />
         ) : (
-          // ── Normal tabs view ──
-          <Tabs defaultValue="appOwner">
-            <TabsList className="guide-no-print flex flex-wrap h-auto gap-1 mb-8 bg-transparent p-0">
-              {GUIDE.map(({ role, icon: Icon, color }) => (
-                <TabsTrigger
-                  key={role}
-                  value={role}
-                  className="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:border-gray-300 text-gray-600 data-[state=active]:text-gray-900 transition-all"
-                >
-                  <Icon className={`h-4 w-4 ${color}`} />
-                  {t(`guide.tabs.${role}`)}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+          <div className="lg:grid lg:grid-cols-[200px_1fr] lg:gap-8 lg:items-start">
+            {/* Sidebar — desktop only */}
+            <GuideSidebar
+              role={activeTab}
+              sections={activeSections}
+              activeId={activeSection}
+            />
 
-            {GUIDE.map((roleDef) => (
-              <TabsContent key={roleDef.role} value={roleDef.role} className="mt-0">
-                <RoleContent {...roleDef} />
-              </TabsContent>
-            ))}
-          </Tabs>
+            {/* Tabs */}
+            <div className="min-w-0">
+              <Tabs
+                value={activeTab}
+                onValueChange={handleTabChange}
+              >
+                <TabsList className="guide-no-print flex flex-wrap h-auto gap-1 mb-8 bg-transparent p-0">
+                  {GUIDE.map(({ role, icon: Icon, color }) => (
+                    <TabsTrigger
+                      key={role}
+                      value={role}
+                      className="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:border-gray-300 text-gray-600 data-[state=active]:text-gray-900 transition-all"
+                    >
+                      <Icon className={`h-4 w-4 ${color}`} />
+                      {t(`guide.tabs.${role}`)}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+
+                {GUIDE.map((roleDef) => (
+                  <TabsContent
+                    key={roleDef.role}
+                    value={roleDef.role}
+                    className="mt-0"
+                  >
+                    <RoleContent {...roleDef} />
+                  </TabsContent>
+                ))}
+              </Tabs>
+            </div>
+          </div>
         )}
       </div>
 

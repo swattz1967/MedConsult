@@ -4,11 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Plus, CheckCircle2, AlertTriangle, XCircle, Upload, X, ImageIcon, Loader2 } from "lucide-react";
+import { Plus, CheckCircle2, AlertTriangle, XCircle, Upload, X, ImageIcon, Loader2, Send, FlaskConical } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,6 +18,159 @@ import { useToast } from "@/hooks/use-toast";
 import { CURRENCY_OPTIONS } from "@/lib/currency";
 import { isValidHex, isLightColor, getContrastRatio, getWcagLevel } from "@/lib/color";
 import { useUpload } from "@workspace/object-storage-web";
+
+// ─── Email template options ───────────────────────────────────────────────────
+
+const TEMPLATE_OPTIONS = [
+  { value: "registration_welcome",  label: "Registration Welcome",          hint: "to patient" },
+  { value: "booking_confirmation",  label: "Booking Confirmation",          hint: "to patient" },
+  { value: "new_booking_alert",     label: "New Booking Alert",             hint: "to surgeon" },
+  { value: "reschedule_customer",   label: "Reschedule Notification",       hint: "to patient" },
+  { value: "reschedule_surgeon",    label: "Reschedule Notification",       hint: "to surgeon" },
+  { value: "status_confirmed",      label: "Status Change: Confirmed",      hint: "to patient" },
+  { value: "status_cancelled",      label: "Status Change: Cancelled",      hint: "to patient" },
+  { value: "status_completed",      label: "Status Change: Completed",      hint: "to patient" },
+  { value: "status_no_show",        label: "Status Change: No-show",        hint: "to patient" },
+  { value: "declaration_reminder",  label: "Declaration Reminder",          hint: "to patient" },
+] as const;
+
+// ─── Send-test-email dialog ───────────────────────────────────────────────────
+
+interface SendTestEmailDialogProps {
+  agency: { id: number; name: string; email?: string | null; primaryColor?: string | null; logoUrl?: string | null };
+}
+
+function SendTestEmailDialog({ agency }: SendTestEmailDialogProps) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [template, setTemplate] = useState<string>("registration_welcome");
+  const [recipientEmail, setRecipientEmail] = useState(agency.email ?? "");
+  const [isSending, setIsSending] = useState(false);
+  const [lastSent, setLastSent] = useState<string | null>(null);
+
+  const color = agency.primaryColor && isValidHex(agency.primaryColor) ? agency.primaryColor : "#1a6b5c";
+  const fg = isLightColor(color) ? "#111827" : "#ffffff";
+  const initial = agency.name[0]?.toUpperCase() ?? "A";
+
+  const handleSend = async () => {
+    if (!recipientEmail || !template) return;
+    setIsSending(true);
+    try {
+      const res = await fetch("/api/email/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateType: template, recipientEmail, agencyId: agency.id }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error ?? "Request failed");
+      }
+      const label = TEMPLATE_OPTIONS.find(t => t.value === template)?.label ?? template;
+      setLastSent(label);
+      toast({
+        title: "Test email sent",
+        description: `"${label}" sent to ${recipientEmail} using ${agency.name} branding.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Send failed",
+        description: err instanceof Error ? err.message : "Could not send preview email.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setLastSent(null); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-1.5 h-8">
+          <FlaskConical className="h-3.5 w-3.5" />
+          Test Email
+        </Button>
+      </DialogTrigger>
+
+      <DialogContent className="sm:max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2.5">
+            {/* Agency badge */}
+            {agency.logoUrl ? (
+              <div className="h-7 w-7 rounded-md border bg-white flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                <img src={agency.logoUrl} alt={agency.name} className="h-full w-full object-contain p-0.5"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              </div>
+            ) : (
+              <div className="h-7 w-7 rounded-md flex items-center justify-center text-xs font-bold shrink-0 shadow-sm"
+                style={{ backgroundColor: color, color: fg }}>
+                {initial}
+              </div>
+            )}
+            Send Test Email
+          </DialogTitle>
+          <DialogDescription>
+            Preview any email template with <span className="font-medium text-foreground">{agency.name}</span>'s real branding — logo, colour, and agency name.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 pt-1">
+          {/* Template picker */}
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">Template</Label>
+            <Select value={template} onValueChange={setTemplate}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TEMPLATE_OPTIONS.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    <span>{t.label}</span>
+                    <span className="ml-1.5 text-muted-foreground text-xs">· {t.hint}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Recipient email */}
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">Send to</Label>
+            <Input
+              type="email"
+              placeholder="you@example.com"
+              value={recipientEmail}
+              onChange={(e) => setRecipientEmail(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">The email will use dummy patient/surgeon data but real agency branding.</p>
+          </div>
+
+          {/* Success indicator */}
+          {lastSent && (
+            <div className="flex items-center gap-2 rounded-lg border bg-emerald-50 border-emerald-200 px-3 py-2 text-sm text-emerald-700">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span><span className="font-medium">"{lastSent}"</span> sent to {recipientEmail}</span>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
+            <Button
+              onClick={handleSend}
+              disabled={isSending || !recipientEmail}
+              className="gap-2"
+              style={{ backgroundColor: color, borderColor: color, color: fg }}
+            >
+              {isSending
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending…</>
+                : <><Send className="h-4 w-4" /> Send Test</>}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // ─── Preset colour palette ────────────────────────────────────────────────────
 
@@ -650,9 +804,12 @@ export default function AgenciesList() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => openEdit(agency)}>
-                        Edit
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <SendTestEmailDialog agency={agency} />
+                        <Button variant="outline" size="sm" onClick={() => openEdit(agency)}>
+                          Edit
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

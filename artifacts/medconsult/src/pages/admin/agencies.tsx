@@ -484,7 +484,10 @@ const agencySchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
-  website: z.string().url().optional().or(z.literal("")),
+  website: z.string().optional().or(z.literal("")).refine((v) => {
+    if (!v) return true;
+    try { new URL(v.startsWith("http") ? v : `https://${v}`); return true; } catch { return false; }
+  }, { message: "Please enter a valid website address" }),
   primaryColor: z.string().optional().or(z.literal("")),
   secondaryColor: z.string().optional().or(z.literal("")),
   logoUrl: z.string().url().optional().or(z.literal("")),
@@ -617,7 +620,18 @@ export default function AgenciesList() {
                     <FormField control={form.control} name="website" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Website</FormLabel>
-                        <FormControl><Input {...field} type="url" /></FormControl>
+                        <FormControl><Input
+                          {...field}
+                          type="text"
+                          placeholder="www.example.com"
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            if (v && !v.startsWith("http://") && !v.startsWith("https://")) {
+                              field.onChange(`https://${v}`);
+                            }
+                            field.onBlur();
+                          }}
+                        /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )} />

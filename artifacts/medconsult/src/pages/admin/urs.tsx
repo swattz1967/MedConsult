@@ -51,6 +51,7 @@ export default function UserRequirementSpec() {
 
             {/* TOC */}
             <Toc items={[
+              "Version History",
               "Introduction & Purpose",
               "Stakeholders & User Roles",
               "System Overview",
@@ -67,6 +68,14 @@ export default function UserRequirementSpec() {
               "Constraints & Assumptions",
               "Glossary",
             ]} />
+
+            {/* Version History */}
+            <Sec title="Version History">
+              <VersionTable rows={[
+                ["1.0", "3 May 2026", "amswatton@hotmail.com", "Initial approved release. All functional and non-functional requirements baselined."],
+              ]} />
+              <AddVersionNote />
+            </Sec>
 
             {/* 1 */}
             <Sec title="1. Introduction & Purpose">
@@ -387,6 +396,36 @@ function ReqTable({ reqs }: { reqs: [string, string, string][] }) {
         ))}
       </tbody>
     </table>
+  );
+}
+function VersionTable({ rows }: { rows: [string, string, string, string][] }) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, margin: "12px 0" }}>
+      <thead>
+        <tr>
+          {["Version", "Date", "Author", "Summary of Changes"].map(h => (
+            <th key={h} style={{ background: "#f3f4f6", textAlign: "left", padding: "8px 12px", fontWeight: 700, border: "1px solid #e5e7eb", color: "#374151", width: h === "Version" ? 80 : h === "Date" ? 110 : h === "Author" ? 200 : "auto" }}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(([ver, date, author, summary], i) => (
+          <tr key={i} style={{ background: i % 2 === 1 ? "#fafafa" : "#fff" }}>
+            <td style={{ padding: "8px 12px", border: "1px solid #e5e7eb", fontFamily: "monospace", fontWeight: 700, color: "#145c4b" }}>{ver}</td>
+            <td style={{ padding: "8px 12px", border: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{date}</td>
+            <td style={{ padding: "8px 12px", border: "1px solid #e5e7eb" }}>{author}</td>
+            <td style={{ padding: "8px 12px", border: "1px solid #e5e7eb" }}>{summary}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+function AddVersionNote() {
+  return (
+    <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "10px 16px", fontSize: 12, color: "#92400e", marginTop: 10 }}>
+      <strong>How to update:</strong> When changes are made to this document, increment the version number, record today's date, add your name, and write a concise summary of what changed in the row above. Older entries remain in the table for full audit history.
+    </div>
   );
 }
 function Footer({ doc, version }: { doc: string; version: string }) {

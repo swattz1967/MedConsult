@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, getTableColumns } from "drizzle-orm";
-import { db, customersTable, appointmentsTable } from "@workspace/db";
+import { db, customersTable, appointmentsTable, agenciesTable } from "@workspace/db";
 import {
   CreateCustomerBody,
   GetCustomerParams,
@@ -9,7 +9,7 @@ import {
   DeleteCustomerParams,
   ListCustomersQueryParams,
 } from "@workspace/api-zod";
-import { sendDeclarationReminder } from "../lib/email";
+import { sendDeclarationReminder, sendRegistrationWelcome } from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -40,6 +40,30 @@ router.post("/customers", async (req, res): Promise<void> => {
   }
   const [customer] = await db.insert(customersTable).values(parsed.data).returning();
   res.status(201).json(customer);
+
+  // Fire-and-forget: send branded welcome email after response is sent
+  if (customer.email) {
+    (async () => {
+      const [agency] = await db
+        .select()
+        .from(agenciesTable)
+        .where(eq(agenciesTable.id, parsed.data.agencyId));
+
+      await sendRegistrationWelcome({
+        customerId: customer.id,
+        customerName: `${customer.firstName} ${customer.lastName}`,
+        customerEmail: customer.email!,
+        agency: {
+          name: agency?.name ?? "MedConsult",
+          color: agency?.primaryColor ?? "#145c4b",
+          logoUrl: agency?.logoUrl,
+          email: agency?.email,
+        },
+      });
+    })().catch((err) => {
+      req.log.error({ err, customerId: customer.id }, "Failed to send registration welcome email");
+    });
+  }
 });
 
 router.get("/customers/:id", async (req, res): Promise<void> => {

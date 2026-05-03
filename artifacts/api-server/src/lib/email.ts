@@ -11,11 +11,43 @@ function getClient(): Resend | null {
   return new Resend(key);
 }
 
-const FROM_ADDRESS = process.env.EMAIL_FROM ?? "MedConsult <notifications@medconsult.app>";
+const DEFAULT_FROM = process.env.EMAIL_FROM ?? "MedConsult <notifications@medconsult.app>";
+
+// ─── Agency branding ──────────────────────────────────────────────────────────
+
+interface AgencyBranding {
+  name: string;
+  color: string;
+  logoUrl?: string | null;
+  email?: string | null;
+}
+
+const DEFAULT_BRANDING: AgencyBranding = {
+  name: "MedConsult",
+  color: "#145c4b",
+  logoUrl: null,
+  email: null,
+};
+
+function fromAddress(agency?: AgencyBranding): string {
+  const name = agency?.name ?? DEFAULT_BRANDING.name;
+  return process.env.EMAIL_FROM ?? `${name} <notifications@medconsult.app>`;
+}
 
 // ─── Shared HTML helpers ──────────────────────────────────────────────────────
 
-function emailWrapper(body: string): string {
+function emailWrapper(body: string, agency?: AgencyBranding): string {
+  const ag = agency ?? DEFAULT_BRANDING;
+  const color = ag.color ?? DEFAULT_BRANDING.color;
+
+  const logoHtml = ag.logoUrl
+    ? `<img src="${ag.logoUrl}" alt="${ag.name}" style="height:36px;width:auto;object-fit:contain;margin-bottom:8px;display:block;" />`
+    : `<div style="display:inline-flex;align-items:center;justify-content:center;height:36px;width:36px;border-radius:8px;background:rgba(255,255,255,0.25);color:#fff;font-weight:700;font-size:16px;margin-bottom:8px;">${ag.name[0]?.toUpperCase() ?? "M"}</div>`;
+
+  const footerText = ag.email
+    ? `${ag.name} &mdash; <a href="mailto:${ag.email}" style="color:#9ca3af;">${ag.email}</a>`
+    : `${ag.name}`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -24,7 +56,7 @@ function emailWrapper(body: string): string {
 <style>
   body { margin:0; padding:0; background:#f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#1a1a2e; }
   .wrapper { max-width:600px; margin:32px auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,.08); }
-  .header { background:#145c4b; padding:28px 36px; }
+  .header { padding:28px 36px; }
   .header h1 { margin:0; color:#fff; font-size:22px; font-weight:700; letter-spacing:-.3px; }
   .header p  { margin:4px 0 0; color:rgba(255,255,255,.7); font-size:13px; }
   .body { padding:28px 36px; }
@@ -37,7 +69,6 @@ function emailWrapper(body: string): string {
   .badge-green { background:#dcfce7; color:#166534; }
   .badge-red   { background:#fee2e2; color:#991b1b; }
   .badge-blue  { background:#dbeafe; color:#1e40af; }
-  .btn { display:inline-block; margin-top:20px; padding:12px 28px; background:#145c4b; color:#fff!important; border-radius:8px; text-decoration:none; font-weight:600; font-size:14px; }
   .footer { padding:20px 36px; background:#f8fafb; border-top:1px solid #e8ecf0; font-size:12px; color:#9ca3af; }
   h2 { font-size:18px; margin:0 0 6px; }
   p  { font-size:14px; line-height:1.6; color:#374151; margin:0 0 12px; }
@@ -45,12 +76,15 @@ function emailWrapper(body: string): string {
 </head>
 <body>
 <div class="wrapper">
-  <div class="header">
-    <h1>MedConsult</h1>
+  <div class="header" style="background:${color};">
+    ${logoHtml}
+    <h1>${ag.name}</h1>
     <p>Surgical Consultation Management</p>
   </div>
   <div class="body">${body}</div>
-  <div class="footer">This is an automated notification from MedConsult. Please do not reply to this email.</div>
+  <div class="footer">
+    This is an automated notification from ${footerText}. Please do not reply to this email.
+  </div>
 </div>
 </body>
 </html>`;
@@ -74,6 +108,94 @@ interface AppointmentEmailData {
   surgeonEmail: string;
   eventName: string;
   eventVenue?: string | null;
+}
+
+// ─── 0. Registration welcome → patient ───────────────────────────────────────
+
+interface RegistrationWelcomeData {
+  customerId: number;
+  customerName: string;
+  customerEmail: string;
+  agency: AgencyBranding;
+}
+
+export async function sendRegistrationWelcome(data: RegistrationWelcomeData): Promise<void> {
+  const client = getClient();
+  if (!client) return;
+
+  const baseUrl = process.env.APP_URL ?? "";
+  const color = data.agency.color ?? DEFAULT_BRANDING.color;
+
+  const html = emailWrapper(
+    `
+    <h2>Welcome to ${data.agency.name}!</h2>
+    <p>Hi ${data.customerName}, your patient profile has been created successfully. You're all set to book consultations with our specialist surgeons.</p>
+
+    <div class="card">
+      <div class="card-row"><span class="label">Name</span><span class="value">${data.customerName}</span></div>
+      <div class="card-row"><span class="label">Email</span><span class="value">${data.customerEmail}</span></div>
+      <div class="card-row"><span class="label">Account Status</span><span class="value"><span class="badge badge-green">Active</span></span></div>
+    </div>
+
+    <h2 style="margin-top:28px;">Get started</h2>
+    <p>Complete these steps to be ready for your consultation:</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">
+      <tr>
+        <td style="padding:0 0 12px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e8ecf0;border-radius:8px;overflow:hidden;">
+            <tr>
+              <td width="48" style="background:#fff7ed;padding:14px 16px;vertical-align:top;text-align:center;">
+                <span style="font-size:20px;">✍️</span>
+              </td>
+              <td style="padding:14px 16px;vertical-align:top;">
+                <div style="font-weight:600;font-size:14px;color:#111827;">Sign your patient declaration</div>
+                <div style="font-size:13px;color:#6b7280;margin-top:3px;">Review and accept the consent clauses. Required before any consultation begins.</div>
+              </td>
+              <td style="padding:14px 16px;vertical-align:middle;text-align:right;white-space:nowrap;">
+                <a href="${baseUrl}/portal/declaration" style="display:inline-block;padding:7px 16px;background:${color};color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;">Sign Now</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 0 12px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e8ecf0;border-radius:8px;overflow:hidden;">
+            <tr>
+              <td width="48" style="background:#eff6ff;padding:14px 16px;vertical-align:top;text-align:center;">
+                <span style="font-size:20px;">📅</span>
+              </td>
+              <td style="padding:14px 16px;vertical-align:top;">
+                <div style="font-weight:600;font-size:14px;color:#111827;">Browse upcoming events</div>
+                <div style="font-size:13px;color:#6b7280;margin-top:3px;">Find a consultation event near you and book a slot with one of our specialist surgeons.</div>
+              </td>
+              <td style="padding:14px 16px;vertical-align:middle;text-align:right;white-space:nowrap;">
+                <a href="${baseUrl}/events" style="display:inline-block;padding:7px 16px;background:#1e40af;color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;">Browse Events</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <p style="font-size:13px;color:#6b7280;">You can manage your appointments, forms, and profile from your patient portal at any time.</p>
+    <a href="${baseUrl}/portal" style="display:inline-block;margin-top:8px;padding:12px 28px;background:${color};color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Open My Portal</a>
+  `,
+    data.agency,
+  );
+
+  try {
+    await client.emails.send({
+      from: fromAddress(data.agency),
+      to: data.customerEmail,
+      subject: `Welcome to ${data.agency.name} — your patient profile is ready`,
+      html,
+    });
+    logger.info({ customerId: data.customerId, to: data.customerEmail }, "Registration welcome email sent");
+  } catch (err) {
+    logger.error({ err, customerId: data.customerId }, "Failed to send registration welcome email");
+  }
 }
 
 // ─── 1. Booking confirmation → customer ──────────────────────────────────────
@@ -145,7 +267,7 @@ export async function sendBookingConfirmation(data: AppointmentEmailData): Promi
 
   try {
     await client.emails.send({
-      from: FROM_ADDRESS,
+      from: DEFAULT_FROM,
       to: data.customerEmail,
       subject: `Consultation confirmed — ${data.surgeonName} on ${format(new Date(data.startTime), "MMM d, yyyy")}`,
       html,
@@ -179,7 +301,7 @@ export async function sendNewBookingAlert(data: AppointmentEmailData): Promise<v
 
   try {
     await client.emails.send({
-      from: FROM_ADDRESS,
+      from: DEFAULT_FROM,
       to: data.surgeonEmail,
       subject: `New appointment: ${data.customerName} on ${format(new Date(data.startTime), "MMM d, yyyy")}`,
       html,
@@ -220,7 +342,7 @@ export async function sendDeclarationReminder(data: DeclarationReminderData): Pr
 
   try {
     await client.emails.send({
-      from: FROM_ADDRESS,
+      from: DEFAULT_FROM,
       to: data.customerEmail,
       subject: "Action required: Sign your patient declaration before your consultation",
       html,
@@ -276,7 +398,7 @@ export async function sendRescheduleNotification(
 
   try {
     await client.emails.send({
-      from: FROM_ADDRESS,
+      from: DEFAULT_FROM,
       to: toEmail,
       subject: `Consultation rescheduled — ${data.eventName} now on ${format(new Date(data.startTime), "MMM d, yyyy")}`,
       html,
@@ -349,7 +471,6 @@ export async function sendStatusChangeNotification(
       ? `<p>If you wish to rebook, please visit your patient portal or contact us directly.</p>`
       : "";
 
-  // Recipient-aware headline/body for no_show and completed
   const headline =
     newStatus === "no_show" && recipientType === "surgeon"
       ? "Patient did not attend"
@@ -387,7 +508,7 @@ export async function sendStatusChangeNotification(
 
   try {
     await client.emails.send({
-      from: FROM_ADDRESS,
+      from: DEFAULT_FROM,
       to: toEmail,
       subject: `${copy.subject} — ${data.eventName}`,
       html,

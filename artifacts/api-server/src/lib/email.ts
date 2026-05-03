@@ -200,11 +200,12 @@ export async function sendRegistrationWelcome(data: RegistrationWelcomeData): Pr
 
 // ─── 1. Booking confirmation → customer ──────────────────────────────────────
 
-export async function sendBookingConfirmation(data: AppointmentEmailData): Promise<void> {
+export async function sendBookingConfirmation(data: AppointmentEmailData, agency?: AgencyBranding): Promise<void> {
   const client = getClient();
   if (!client) return;
 
   const baseUrl = process.env.APP_URL ?? "";
+  const color = agency?.color ?? DEFAULT_BRANDING.color;
 
   const html = emailWrapper(`
     <h2>Your consultation is confirmed!</h2>
@@ -215,7 +216,7 @@ export async function sendBookingConfirmation(data: AppointmentEmailData): Promi
       ${data.eventVenue ? `<div class="card-row"><span class="label">Venue</span><span class="value">${data.eventVenue}</span></div>` : ""}
       <div class="card-row"><span class="label">Date &amp; Time</span><span class="value">${formatDateTime(data.startTime)}</span></div>
       <div class="card-row"><span class="label">Duration</span><span class="value">${data.slotMinutes ?? 30} minutes</span></div>
-      ${data.fee ? `<div class="card-row"><span class="label">Consultation Fee</span><span class="value">$${data.fee}</span></div>` : ""}
+      ${data.fee ? `<div class="card-row"><span class="label">Consultation Fee</span><span class="value">${data.fee}</span></div>` : ""}
       <div class="card-row"><span class="label">Status</span><span class="value"><span class="badge badge-green">Confirmed</span></span></div>
     </div>
 
@@ -235,7 +236,7 @@ export async function sendBookingConfirmation(data: AppointmentEmailData): Promi
                 <div style="font-size:13px;color:#6b7280;margin-top:3px;">Read and accept 6 consent clauses. Required before your consultation begins.</div>
               </td>
               <td style="padding:14px 16px;vertical-align:middle;text-align:right;white-space:nowrap;">
-                <a href="${baseUrl}/portal/declaration" style="display:inline-block;padding:7px 16px;background:#145c4b;color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;">Sign Now</a>
+                <a href="${baseUrl}/portal/declaration" style="display:inline-block;padding:7px 16px;background:${color};color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;">Sign Now</a>
               </td>
             </tr>
           </table>
@@ -262,12 +263,12 @@ export async function sendBookingConfirmation(data: AppointmentEmailData): Promi
     </table>
 
     <p style="font-size:13px;color:#6b7280;">You can manage everything from your patient portal at any time.</p>
-    <a href="${baseUrl}/portal" class="btn">Open My Portal</a>
-  `);
+    <a href="${baseUrl}/portal" style="display:inline-block;margin-top:8px;padding:12px 28px;background:${color};color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Open My Portal</a>
+  `, agency);
 
   try {
     await client.emails.send({
-      from: DEFAULT_FROM,
+      from: fromAddress(agency),
       to: data.customerEmail,
       subject: `Consultation confirmed — ${data.surgeonName} on ${format(new Date(data.startTime), "MMM d, yyyy")}`,
       html,
@@ -280,9 +281,12 @@ export async function sendBookingConfirmation(data: AppointmentEmailData): Promi
 
 // ─── 2. New booking alert → surgeon ──────────────────────────────────────────
 
-export async function sendNewBookingAlert(data: AppointmentEmailData): Promise<void> {
+export async function sendNewBookingAlert(data: AppointmentEmailData, agency?: AgencyBranding): Promise<void> {
   const client = getClient();
   if (!client) return;
+
+  const color = agency?.color ?? DEFAULT_BRANDING.color;
+  const surgeonPortalUrl = `${process.env.APP_URL ?? ""}/surgeon`;
 
   const html = emailWrapper(`
     <h2>New consultation booked</h2>
@@ -293,15 +297,15 @@ export async function sendNewBookingAlert(data: AppointmentEmailData): Promise<v
       ${data.eventVenue ? `<div class="card-row"><span class="label">Venue</span><span class="value">${data.eventVenue}</span></div>` : ""}
       <div class="card-row"><span class="label">Date &amp; Time</span><span class="value">${formatDateTime(data.startTime)}</span></div>
       <div class="card-row"><span class="label">Duration</span><span class="value">${data.slotMinutes ?? 30} minutes</span></div>
-      ${data.fee ? `<div class="card-row"><span class="label">Fee</span><span class="value">$${data.fee}</span></div>` : ""}
+      ${data.fee ? `<div class="card-row"><span class="label">Fee</span><span class="value">${data.fee}</span></div>` : ""}
     </div>
     <p>You can review the patient's pre-consultation form and manage this appointment from the surgeon portal.</p>
-    <a href="${process.env.APP_URL ?? "#"}/surgeon" class="btn">Open Surgeon Portal</a>
-  `);
+    <a href="${surgeonPortalUrl}" style="display:inline-block;margin-top:8px;padding:12px 28px;background:${color};color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Open Surgeon Portal</a>
+  `, agency);
 
   try {
     await client.emails.send({
-      from: DEFAULT_FROM,
+      from: fromAddress(agency),
       to: data.surgeonEmail,
       subject: `New appointment: ${data.customerName} on ${format(new Date(data.startTime), "MMM d, yyyy")}`,
       html,
@@ -363,11 +367,13 @@ interface RescheduleEmailData extends AppointmentEmailData {
 export async function sendRescheduleNotification(
   data: RescheduleEmailData,
   recipientType: "customer" | "surgeon",
+  agency?: AgencyBranding,
 ): Promise<void> {
   const client = getClient();
   if (!client) return;
 
   const baseUrl = process.env.APP_URL ?? "";
+  const color = agency?.color ?? DEFAULT_BRANDING.color;
   const isCustomer = recipientType === "customer";
   const toEmail = isCustomer ? data.customerEmail : data.surgeonEmail;
   const toName = isCustomer ? data.customerName : data.surgeonName;
@@ -384,7 +390,7 @@ export async function sendRescheduleNotification(
       </div>
       <div class="card-row">
         <span class="label">New Date &amp; Time</span>
-        <span class="value" style="color:#145c4b;font-weight:700;">${formatDateTime(data.startTime)}</span>
+        <span class="value" style="color:${color};font-weight:700;">${formatDateTime(data.startTime)}</span>
       </div>
       <div class="card-row"><span class="label">${isCustomer ? "Surgeon" : "Patient"}</span><span class="value">${isCustomer ? data.surgeonName : data.customerName}</span></div>
       <div class="card-row"><span class="label">Event</span><span class="value">${data.eventName}</span></div>
@@ -393,12 +399,12 @@ export async function sendRescheduleNotification(
       <div class="card-row"><span class="label">Status</span><span class="value"><span class="badge badge-blue">Rescheduled</span></span></div>
     </div>
     ${isCustomer ? `<p>Please make sure your calendar is updated. Your declaration and pre-consultation form remain valid.</p>` : `<p>Please update your schedule accordingly.</p>`}
-    <a href="${portalHref}" class="btn">${portalLabel}</a>
-  `);
+    <a href="${portalHref}" style="display:inline-block;margin-top:8px;padding:12px 28px;background:${color};color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">${portalLabel}</a>
+  `, agency);
 
   try {
     await client.emails.send({
-      from: DEFAULT_FROM,
+      from: fromAddress(agency),
       to: toEmail,
       subject: `Consultation rescheduled — ${data.eventName} now on ${format(new Date(data.startTime), "MMM d, yyyy")}`,
       html,
@@ -446,6 +452,7 @@ export async function sendStatusChangeNotification(
   newStatus: string,
   recipientType: "customer" | "surgeon",
   notes?: string | null,
+  agency?: AgencyBranding,
 ): Promise<void> {
   const client = getClient();
   if (!client) return;
@@ -454,6 +461,7 @@ export async function sendStatusChangeNotification(
   if (!copy) return;
 
   const baseUrl = process.env.APP_URL ?? "";
+  const color = agency?.color ?? DEFAULT_BRANDING.color;
   const toEmail = recipientType === "customer" ? data.customerEmail : data.surgeonEmail;
   const toName = recipientType === "customer" ? data.customerName : data.surgeonName;
   const otherPartyLabel = recipientType === "customer" ? "Surgeon" : "Patient";
@@ -503,12 +511,12 @@ export async function sendStatusChangeNotification(
     </div>
     ${rebookNote}
     ${followUpNote}
-    <a href="${portalHref}" class="btn">${portalLabel}</a>
-  `);
+    <a href="${portalHref}" style="display:inline-block;margin-top:8px;padding:12px 28px;background:${color};color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">${portalLabel}</a>
+  `, agency);
 
   try {
     await client.emails.send({
-      from: DEFAULT_FROM,
+      from: fromAddress(agency),
       to: toEmail,
       subject: `${copy.subject} — ${data.eventName}`,
       html,

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, appointmentsTable, customersTable, surgeonsTable, eventsTable } from "@workspace/db";
+import { db, appointmentsTable, customersTable, surgeonsTable, eventsTable, agenciesTable } from "@workspace/db";
 import {
   CreateAppointmentBody,
   GetAppointmentParams,
@@ -65,21 +65,31 @@ router.post("/appointments", async (req, res): Promise<void> => {
 
   // Fire-and-forget emails — after response sent
   if (customer?.email && surgeon?.email && event) {
-    const emailData = {
-      appointmentId: appt.id,
-      startTime: appt.startTime,
-      endTime: appt.endTime,
-      fee: appt.fee,
-      slotMinutes: appt.slotMinutes,
-      customerName: `${customer.firstName} ${customer.lastName}`,
-      customerEmail: customer.email,
-      surgeonName: `${surgeon.firstName} ${surgeon.lastName}`,
-      surgeonEmail: surgeon.email,
-      eventName: event.name,
-      eventVenue: event.venue,
-    };
-    void sendBookingConfirmation(emailData);
-    void sendNewBookingAlert(emailData);
+    (async () => {
+      const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, event.agencyId));
+      const agencyBranding = agency
+        ? { name: agency.name, color: agency.primaryColor ?? "#145c4b", logoUrl: agency.logoUrl, email: agency.email }
+        : undefined;
+
+      const emailData = {
+        appointmentId: appt.id,
+        startTime: appt.startTime,
+        endTime: appt.endTime,
+        fee: appt.fee,
+        slotMinutes: appt.slotMinutes,
+        customerName: `${customer.firstName} ${customer.lastName}`,
+        customerEmail: customer.email!,
+        surgeonName: `${surgeon.firstName} ${surgeon.lastName}`,
+        surgeonEmail: surgeon.email!,
+        eventName: event.name,
+        eventVenue: event.venue,
+      };
+
+      await sendBookingConfirmation(emailData, agencyBranding);
+      await sendNewBookingAlert(emailData, agencyBranding);
+    })().catch((err) => {
+      req.log.error({ err, appointmentId: appt.id }, "Failed to send booking emails");
+    });
   }
 });
 
@@ -115,7 +125,6 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  // Capture old status before update
   const [oldAppt] = await db.select().from(appointmentsTable).where(eq(appointmentsTable.id, params.data.id));
 
   const cleanData: Record<string, unknown> = {};
@@ -134,42 +143,41 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
   res.json({ ...appt, customer, surgeon, event });
 
   if (customer?.email && surgeon?.email && event) {
-    const emailData = {
-      appointmentId: appt.id,
-      startTime: appt.startTime,
-      endTime: appt.endTime,
-      fee: appt.fee,
-      slotMinutes: appt.slotMinutes,
-      customerName: `${customer.firstName} ${customer.lastName}`,
-      customerEmail: customer.email,
-      surgeonName: `${surgeon.firstName} ${surgeon.lastName}`,
-      surgeonEmail: surgeon.email,
-      eventName: event.name,
-      eventVenue: event.venue,
-    };
+    (async () => {
+      const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, event.agencyId));
+      const agencyBranding = agency
+        ? { name: agency.name, color: agency.primaryColor ?? "#145c4b", logoUrl: agency.logoUrl, email: agency.email }
+        : undefined;
 
-    // Fire reschedule emails if startTime changed
-    const timeChanged =
-      oldAppt && parsed.data.startTime && parsed.data.startTime !== oldAppt.startTime;
-    if (timeChanged) {
-      void sendRescheduleNotification(
-        { ...emailData, oldStartTime: oldAppt!.startTime },
-        "customer",
-      );
-      void sendRescheduleNotification(
-        { ...emailData, oldStartTime: oldAppt!.startTime },
-        "surgeon",
-      );
-    } else {
-      // Fire status-change emails if status changed (but not a reschedule)
-      const statusChanged =
-        parsed.data.status && oldAppt && parsed.data.status !== oldAppt.status;
-      if (statusChanged) {
-        const notesForEmail = parsed.data.notes ?? appt.notes ?? null;
-        void sendStatusChangeNotification(emailData, parsed.data.status!, "customer", notesForEmail);
-        void sendStatusChangeNotification(emailData, parsed.data.status!, "surgeon", notesForEmail);
+      const emailData = {
+        appointmentId: appt.id,
+        startTime: appt.startTime,
+        endTime: appt.endTime,
+        fee: appt.fee,
+        slotMinutes: appt.slotMinutes,
+        customerName: `${customer.firstName} ${customer.lastName}`,
+        customerEmail: customer.email!,
+        surgeonName: `${surgeon.firstName} ${surgeon.lastName}`,
+        surgeonEmail: surgeon.email!,
+        eventName: event.name,
+        eventVenue: event.venue,
+      };
+
+      const timeChanged = oldAppt && parsed.data.startTime && parsed.data.startTime !== oldAppt.startTime;
+      if (timeChanged) {
+        await sendRescheduleNotification({ ...emailData, oldStartTime: oldAppt!.startTime }, "customer", agencyBranding);
+        await sendRescheduleNotification({ ...emailData, oldStartTime: oldAppt!.startTime }, "surgeon", agencyBranding);
+      } else {
+        const statusChanged = parsed.data.status && oldAppt && parsed.data.status !== oldAppt.status;
+        if (statusChanged) {
+          const notesForEmail = parsed.data.notes ?? appt.notes ?? null;
+          await sendStatusChangeNotification(emailData, parsed.data.status!, "customer", notesForEmail, agencyBranding);
+          await sendStatusChangeNotification(emailData, parsed.data.status!, "surgeon", notesForEmail, agencyBranding);
+        }
       }
-    }
+    })().catch((err) => {
+      req.log.error({ err, appointmentId: appt.id }, "Failed to send appointment update emails");
+    });
   }
 });
 

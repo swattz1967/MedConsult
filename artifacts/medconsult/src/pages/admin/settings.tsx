@@ -7,6 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
   Bell,
@@ -16,9 +24,24 @@ import {
   Settings2,
   CalendarDays,
   RefreshCw,
+  Send,
+  FlaskConical,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+
+const TEMPLATE_OPTIONS = [
+  { value: "registration_welcome",   label: "Registration Welcome (to patient)" },
+  { value: "booking_confirmation",   label: "Booking Confirmation (to patient)" },
+  { value: "new_booking_alert",      label: "New Booking Alert (to surgeon)" },
+  { value: "reschedule_customer",    label: "Reschedule Notification (to patient)" },
+  { value: "reschedule_surgeon",     label: "Reschedule Notification (to surgeon)" },
+  { value: "status_confirmed",       label: "Status Change: Confirmed (to patient)" },
+  { value: "status_cancelled",       label: "Status Change: Cancelled (to patient)" },
+  { value: "status_completed",       label: "Status Change: Completed (to patient)" },
+  { value: "status_no_show",         label: "Status Change: No-show (to patient)" },
+  { value: "declaration_reminder",   label: "Declaration Reminder (to patient)" },
+] as const;
 
 const DAY_OPTIONS = [1, 2, 3, 5, 7, 14] as const;
 
@@ -37,6 +60,31 @@ export default function AdminSettings() {
   const [enabled, setEnabled] = useState(false);
   const [days, setDays] = useState(3);
   const [dirty, setDirty] = useState(false);
+
+  const [previewTemplate, setPreviewTemplate] = useState<string>("booking_confirmation");
+  const [previewEmail, setPreviewEmail] = useState("");
+  const [isSendingPreview, setIsSendingPreview] = useState(false);
+
+  const handleSendPreview = async () => {
+    if (!agencyId || !previewEmail) return;
+    setIsSendingPreview(true);
+    try {
+      const res = await fetch("/api/email/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateType: previewTemplate, recipientEmail: previewEmail, agencyId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error ?? "Request failed");
+      }
+      toast({ title: "Test email sent", description: `Preview of "${TEMPLATE_OPTIONS.find(t => t.value === previewTemplate)?.label}" sent to ${previewEmail}.` });
+    } catch (err) {
+      toast({ title: "Send failed", description: err instanceof Error ? err.message : "Could not send preview email.", variant: "destructive" });
+    } finally {
+      setIsSendingPreview(false);
+    }
+  };
 
   useEffect(() => {
     if (settings) {
@@ -83,6 +131,60 @@ export default function AdminSettings() {
           Configure automated notifications and system behaviour
         </p>
       </div>
+
+      {/* Email template preview card */}
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+              <FlaskConical className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Email Template Preview</CardTitle>
+              <CardDescription className="mt-1">
+                Send yourself a test email using real agency branding to check how each template looks in your inbox before it goes to patients or surgeons.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Template</Label>
+            <Select value={previewTemplate} onValueChange={setPreviewTemplate}>
+              <SelectTrigger>
+                <SelectValue placeholder="Pick a template…" />
+              </SelectTrigger>
+              <SelectContent>
+                {TEMPLATE_OPTIONS.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Send test to</Label>
+            <Input
+              type="email"
+              placeholder="you@example.com"
+              value={previewEmail}
+              onChange={(e) => setPreviewEmail(e.target.value)}
+            />
+          </div>
+          <div className="rounded-lg border bg-amber-50/40 border-amber-100 p-3 text-xs text-amber-800">
+            The email will be sent with realistic dummy data (fake patient name, surgeon, event) using your agency&apos;s actual logo and brand colour.
+          </div>
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSendPreview}
+              disabled={isSendingPreview || !previewEmail || !agencyId}
+              className="gap-2"
+            >
+              <Send className="h-4 w-4" />
+              {isSendingPreview ? "Sending…" : "Send Test Email"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Declaration auto-reminder card */}
       <Card>

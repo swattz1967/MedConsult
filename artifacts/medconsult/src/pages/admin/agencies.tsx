@@ -200,7 +200,7 @@ function LogoUpload({ value, onChange }: LogoUploadProps) {
 
   const { uploadFile, isUploading } = useUpload({
     onSuccess: (res) => {
-      const url = `/api/storage${res.objectPath}`;
+      const url = `/api/storage${res.objectKey}`;
       onChange(url);
     },
     onError: () => {

@@ -1,16 +1,9 @@
 import { useState, useCallback } from "react";
 import type { UppyFile } from "@uppy/core";
 
-interface UploadMetadata {
-  name: string;
-  size: number;
-  contentType: string;
-}
-
 interface UploadResponse {
-  uploadURL: string;
-  objectPath: string;
-  metadata: UploadMetadata;
+  uploadUrl: string;
+  objectKey: string;
 }
 
 interface UseUploadOptions {
@@ -67,8 +60,7 @@ export function useUpload(options: UseUploadOptions = {}) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: file.name,
-          size: file.size,
+          fileName: file.name,
           contentType: file.type || "application/octet-stream",
         }),
       });
@@ -111,7 +103,7 @@ export function useUpload(options: UseUploadOptions = {}) {
         const uploadResponse = await requestUploadUrl(file);
 
         setProgress(30);
-        await uploadToPresignedUrl(file, uploadResponse.uploadURL);
+        await uploadToPresignedUrl(file, uploadResponse.uploadUrl);
 
         setProgress(100);
         options.onSuccess?.(uploadResponse);
@@ -142,8 +134,7 @@ export function useUpload(options: UseUploadOptions = {}) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: file.name,
-          size: file.size,
+          fileName: file.name,
           contentType: file.type || "application/octet-stream",
         }),
       });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useListAgencies, useCreateAgency, useUpdateAgency, getListAgenciesQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +15,153 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { CURRENCY_OPTIONS } from "@/lib/currency";
+import { isValidHex, isLightColor } from "@/lib/color";
+
+// ─── Preset colour palette ────────────────────────────────────────────────────
+
+const COLOUR_PRESETS = [
+  { hex: "#1a6b5c", label: "Teal" },
+  { hex: "#2563eb", label: "Blue" },
+  { hex: "#7c3aed", label: "Violet" },
+  { hex: "#dc2626", label: "Red" },
+  { hex: "#ea580c", label: "Orange" },
+  { hex: "#ca8a04", label: "Amber" },
+  { hex: "#16a34a", label: "Green" },
+  { hex: "#0891b2", label: "Cyan" },
+  { hex: "#db2777", label: "Pink" },
+  { hex: "#374151", label: "Slate" },
+];
+
+// ─── Colour picker input ──────────────────────────────────────────────────────
+
+interface ColorPickerInputProps {
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  presets?: boolean;
+}
+
+function ColorPickerInput({ value, onChange, label, presets = false }: ColorPickerInputProps) {
+  const colorRef = useRef<HTMLInputElement>(null);
+  const clean = (value ?? "").trim();
+  const valid = isValidHex(clean);
+  const swatchBg = valid ? clean : "#e5e7eb";
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        {/* Colour swatch — triggers native picker */}
+        <button
+          type="button"
+          onClick={() => colorRef.current?.click()}
+          title={`Choose ${label}`}
+          className="h-9 w-9 shrink-0 rounded-md border-2 border-input cursor-pointer transition-all hover:scale-110 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          style={{ backgroundColor: swatchBg }}
+          aria-label={`Pick ${label}`}
+        />
+        {/* Hidden native colour input */}
+        <input
+          ref={colorRef}
+          type="color"
+          value={valid ? clean : "#000000"}
+          onChange={(e) => onChange(e.target.value)}
+          className="sr-only"
+          tabIndex={-1}
+        />
+        {/* Hex text input */}
+        <Input
+          value={clean}
+          onChange={(e) => {
+            const v = e.target.value.trim();
+            onChange(v.startsWith("#") || v === "" ? v : `#${v}`);
+          }}
+          placeholder="#000000"
+          className="font-mono text-sm"
+          maxLength={7}
+        />
+      </div>
+
+      {/* Quick preset swatches */}
+      {presets && (
+        <div className="flex flex-wrap gap-1.5 pt-0.5">
+          {COLOUR_PRESETS.map((p) => (
+            <button
+              key={p.hex}
+              type="button"
+              title={p.label}
+              onClick={() => onChange(p.hex)}
+              className={`h-5 w-5 rounded-full border-2 transition-all hover:scale-125 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 ${
+                clean.toLowerCase() === p.hex ? "border-foreground shadow-sm scale-110" : "border-transparent"
+              }`}
+              style={{ backgroundColor: p.hex }}
+              aria-label={p.label}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Brand preview card ───────────────────────────────────────────────────────
+
+function BrandPreview({ name, primary, secondary }: { name: string; primary: string; secondary: string }) {
+  const validP = isValidHex(primary);
+  const validS = isValidHex(secondary);
+  if (!validP && !validS) return null;
+
+  const bgP = validP ? primary : "#e5e7eb";
+  const fgP = validP ? (isLightColor(primary) ? "#111827" : "#ffffff") : "#374151";
+  const initial = (name || "A")[0]?.toUpperCase() ?? "A";
+
+  return (
+    <div className="col-span-2 rounded-xl border overflow-hidden">
+      <div className="text-xs font-medium text-muted-foreground px-3 py-2 bg-muted/50 border-b">
+        Brand Preview
+      </div>
+      <div className="p-4 flex items-center gap-4">
+        {/* Avatar */}
+        <div
+          className="h-10 w-10 rounded-lg flex items-center justify-center text-base font-bold shrink-0 shadow-sm"
+          style={{ backgroundColor: bgP, color: fgP }}
+        >
+          {initial}
+        </div>
+
+        {/* Agency name */}
+        <span className="font-semibold text-sm truncate flex-1" style={validP ? { color: primary } : {}}>
+          {name || "Agency Name"}
+        </span>
+
+        {/* Colour chips */}
+        <div className="flex items-center gap-3 shrink-0">
+          {validP && (
+            <div className="flex items-center gap-1.5">
+              <div className="h-4 w-4 rounded-full border shadow-sm" style={{ backgroundColor: primary }} />
+              <span className="text-xs text-muted-foreground font-mono">{primary}</span>
+              <span className="text-xs text-muted-foreground">Primary</span>
+            </div>
+          )}
+          {validS && (
+            <div className="flex items-center gap-1.5">
+              <div className="h-4 w-4 rounded-full border shadow-sm" style={{ backgroundColor: secondary }} />
+              <span className="text-xs text-muted-foreground font-mono">{secondary}</span>
+              <span className="text-xs text-muted-foreground">Secondary</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Colour bar */}
+      <div className="flex h-2">
+        <div className="flex-1" style={{ backgroundColor: validP ? primary : "transparent" }} />
+        <div className="flex-1" style={{ backgroundColor: validS ? secondary : "transparent" }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Schema ───────────────────────────────────────────────────────────────────
 
 const agencySchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -30,6 +177,8 @@ const agencySchema = z.object({
 
 type AgencyFormValues = z.infer<typeof agencySchema>;
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function AgenciesList() {
   const { data: agencies, isLoading } = useListAgencies();
   const [open, setOpen] = useState(false);
@@ -37,7 +186,6 @@ export default function AgenciesList() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
-
   const createAgency = useCreateAgency();
   const updateAgency = useUpdateAgency();
 
@@ -47,8 +195,12 @@ export default function AgenciesList() {
       name: "", email: "", phone: "", website: "",
       primaryColor: "", secondaryColor: "", logoUrl: "", address: "",
       currency: "GBP",
-    }
+    },
   });
+
+  const watchName    = form.watch("name");
+  const watchPrimary = form.watch("primaryColor") ?? "";
+  const watchSecondary = form.watch("secondaryColor") ?? "";
 
   const onSubmit = (values: AgencyFormValues) => {
     if (editingId) {
@@ -57,7 +209,7 @@ export default function AgenciesList() {
           queryClient.invalidateQueries({ queryKey: getListAgenciesQueryKey() });
           setOpen(false);
           toast({ title: "Agency updated" });
-        }
+        },
       });
     } else {
       createAgency.mutate({ data: values }, {
@@ -65,7 +217,7 @@ export default function AgenciesList() {
           queryClient.invalidateQueries({ queryKey: getListAgenciesQueryKey() });
           setOpen(false);
           toast({ title: "Agency created" });
-        }
+        },
       });
     }
   };
@@ -107,60 +259,137 @@ export default function AgenciesList() {
               Add Agency
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
+
+          <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingId ? "Edit Agency" : "Add Agency"}</DialogTitle>
             </DialogHeader>
+
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="name" render={({ field }) => (
-                    <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                  )} />
-                  <FormField control={form.control} name="email" render={({ field }) => (
-                    <FormItem><FormLabel>Email</FormLabel><FormControl><Input {...field} type="email" /></FormControl><FormMessage /></FormItem>
-                  )} />
-                  <FormField control={form.control} name="phone" render={({ field }) => (
-                    <FormItem><FormLabel>Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                  )} />
-                  <FormField control={form.control} name="website" render={({ field }) => (
-                    <FormItem><FormLabel>Website</FormLabel><FormControl><Input {...field} type="url" /></FormControl><FormMessage /></FormItem>
-                  )} />
-                  <FormField control={form.control} name="primaryColor" render={({ field }) => (
-                    <FormItem><FormLabel>Primary Color (Hex)</FormLabel><FormControl><Input {...field} placeholder="#1a6b5c" /></FormControl><FormMessage /></FormItem>
-                  )} />
-                  <FormField control={form.control} name="secondaryColor" render={({ field }) => (
-                    <FormItem><FormLabel>Secondary Color (Hex)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                  )} />
-                  <FormField control={form.control} name="currency" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Currency</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select currency" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {CURRENCY_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.symbol} {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="logoUrl" render={({ field }) => (
-                    <FormItem><FormLabel>Logo URL</FormLabel><FormControl><Input {...field} type="url" /></FormControl><FormMessage /></FormItem>
-                  )} />
-                  <FormField control={form.control} name="address" render={({ field }) => (
-                    <FormItem className="col-span-2"><FormLabel>Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                  )} />
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+
+                {/* ── Basic info ── */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                    Basic Information
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="name" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl><Input {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="email" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl><Input {...field} type="email" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="phone" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone</FormLabel>
+                        <FormControl><Input {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="website" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Website</FormLabel>
+                        <FormControl><Input {...field} type="url" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="currency" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Currency</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select currency" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {CURRENCY_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.symbol} {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="logoUrl" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Logo URL</FormLabel>
+                        <FormControl><Input {...field} type="url" placeholder="https://…" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="address" render={({ field }) => (
+                      <FormItem className="col-span-2">
+                        <FormLabel>Address</FormLabel>
+                        <FormControl><Input {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
                 </div>
-                <div className="flex justify-end">
-                  <Button type="submit" disabled={createAgency.isPending || updateAgency.isPending}>Save</Button>
+
+                {/* ── Brand colours ── */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                    Brand Colours
+                  </p>
+                  <div className="grid grid-cols-2 gap-6">
+                    <FormField control={form.control} name="primaryColor" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Primary Colour</FormLabel>
+                        <FormControl>
+                          <ColorPickerInput
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                            label="primary colour"
+                            presets
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="secondaryColor" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Secondary Colour</FormLabel>
+                        <FormControl>
+                          <ColorPickerInput
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                            label="secondary colour"
+                            presets
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+
+                    {/* Live preview */}
+                    <BrandPreview
+                      name={watchName}
+                      primary={watchPrimary}
+                      secondary={watchSecondary}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    type="submit"
+                    disabled={createAgency.isPending || updateAgency.isPending}
+                  >
+                    {createAgency.isPending || updateAgency.isPending ? "Saving…" : "Save"}
+                  </Button>
                 </div>
               </form>
             </Form>
@@ -168,6 +397,7 @@ export default function AgenciesList() {
         </Dialog>
       </div>
 
+      {/* ── Table ── */}
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -177,7 +407,7 @@ export default function AgenciesList() {
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Currency</TableHead>
-                <TableHead>Website</TableHead>
+                <TableHead>Colours</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -185,12 +415,9 @@ export default function AgenciesList() {
               {isLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-[200px]" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-[60px]" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
-                    <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
+                    {Array.from({ length: 6 }).map((__, j) => (
+                      <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                    ))}
                   </TableRow>
                 ))
               ) : agencies?.length === 0 ? (
@@ -204,12 +431,29 @@ export default function AgenciesList() {
                   <TableRow key={agency.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
-                        {agency.logoUrl && <img src={agency.logoUrl} alt={agency.name} className="w-6 h-6 rounded-full object-contain" />}
+                        {agency.logoUrl ? (
+                          <img
+                            src={agency.logoUrl}
+                            alt={agency.name}
+                            className="w-6 h-6 rounded object-contain"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                          />
+                        ) : agency.primaryColor && isValidHex(agency.primaryColor) ? (
+                          <div
+                            className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold shrink-0"
+                            style={{
+                              backgroundColor: agency.primaryColor,
+                              color: isLightColor(agency.primaryColor) ? "#111" : "#fff",
+                            }}
+                          >
+                            {agency.name[0]?.toUpperCase()}
+                          </div>
+                        ) : null}
                         {agency.name}
                       </div>
                     </TableCell>
-                    <TableCell>{agency.email}</TableCell>
-                    <TableCell>{agency.phone}</TableCell>
+                    <TableCell className="text-muted-foreground">{agency.email}</TableCell>
+                    <TableCell className="text-muted-foreground">{agency.phone}</TableCell>
                     <TableCell>
                       <span className="font-mono text-sm">
                         {CURRENCY_OPTIONS.find((c) => c.value === agency.currency)?.symbol ?? "£"}{" "}
@@ -217,14 +461,31 @@ export default function AgenciesList() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      {agency.website && (
-                        <a href={agency.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                          {agency.website}
-                        </a>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {agency.primaryColor && isValidHex(agency.primaryColor) ? (
+                          <div
+                            className="h-5 w-5 rounded-full border shadow-sm"
+                            style={{ backgroundColor: agency.primaryColor }}
+                            title={`Primary: ${agency.primaryColor}`}
+                          />
+                        ) : (
+                          <div className="h-5 w-5 rounded-full border border-dashed bg-muted" title="No primary colour" />
+                        )}
+                        {agency.secondaryColor && isValidHex(agency.secondaryColor) ? (
+                          <div
+                            className="h-5 w-5 rounded-full border shadow-sm"
+                            style={{ backgroundColor: agency.secondaryColor }}
+                            title={`Secondary: ${agency.secondaryColor}`}
+                          />
+                        ) : (
+                          <div className="h-5 w-5 rounded-full border border-dashed bg-muted" title="No secondary colour" />
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => openEdit(agency)}>Edit</Button>
+                      <Button variant="outline" size="sm" onClick={() => openEdit(agency)}>
+                        Edit
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))

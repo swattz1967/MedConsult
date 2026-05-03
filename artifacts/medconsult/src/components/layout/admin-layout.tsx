@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { UserButton } from "@clerk/react";
 import { useTranslation } from "react-i18next";
@@ -13,6 +14,7 @@ import {
   BarChart2,
   Settings,
   ChevronDown,
+  ChevronRight,
   Globe,
   MailCheck,
   BookOpen,
@@ -20,6 +22,7 @@ import {
   CheckSquare,
   Layers,
   FlaskConical,
+  LibraryBig,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem,
@@ -41,33 +44,51 @@ const LANGUAGES = [
   { code: "tr",    label: "Türkçe",         flag: "🇹🇷" },
 ];
 
+const DOC_HREFS = [
+  "/admin/technical-reference",
+  "/admin/urs",
+  "/admin/design-document",
+  "/admin/test-plan",
+];
+
+const docItems = [
+  { labelKey: "nav.technicalRef", href: "/admin/technical-reference", icon: Code2 },
+  { labelKey: "nav.urs",          href: "/admin/urs",                 icon: CheckSquare },
+  { labelKey: "nav.designDoc",    href: "/admin/design-document",     icon: Layers },
+  { labelKey: "nav.testPlan",     href: "/admin/test-plan",           icon: FlaskConical },
+];
+
+const mainNavItems = [
+  { labelKey: "nav.dashboard",      href: "/admin",                icon: LayoutDashboard },
+  { labelKey: "nav.agencies",       href: "/admin/agencies",       icon: Building2 },
+  { labelKey: "nav.surgeons",       href: "/admin/surgeons",       icon: Stethoscope },
+  { labelKey: "nav.events",         href: "/admin/events",         icon: CalendarDays },
+  { labelKey: "nav.customers",      href: "/admin/customers",      icon: Users },
+  { labelKey: "nav.questionnaires", href: "/admin/questionnaires", icon: FileText },
+  { labelKey: "nav.consultations",  href: "/admin/consultations",  icon: ClipboardList },
+  { labelKey: "nav.reports",        href: "/admin/reports",        icon: BarChart2 },
+  { labelKey: "nav.emailLogs",      href: "/admin/email-logs",     icon: MailCheck },
+  { labelKey: "nav.settings",       href: "/admin/settings",       icon: Settings },
+  { labelKey: "nav.userGuide",      href: "/guide",                icon: BookOpen },
+];
+
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { t } = useTranslation();
   const { currentAgency, agencies, setCurrentAgencyId } = useAgency();
   const currentLang = LANGUAGES.find((l) => l.code === i18n.language) ?? LANGUAGES[0];
 
-  const navItems = [
-    { labelKey: "nav.dashboard",      href: "/admin",                 icon: LayoutDashboard },
-    { labelKey: "nav.agencies",       href: "/admin/agencies",        icon: Building2 },
-    { labelKey: "nav.surgeons",       href: "/admin/surgeons",        icon: Stethoscope },
-    { labelKey: "nav.events",         href: "/admin/events",          icon: CalendarDays },
-    { labelKey: "nav.customers",      href: "/admin/customers",       icon: Users },
-    { labelKey: "nav.questionnaires", href: "/admin/questionnaires",  icon: FileText },
-    { labelKey: "nav.consultations",  href: "/admin/consultations",   icon: ClipboardList },
-    { labelKey: "nav.reports",        href: "/admin/reports",         icon: BarChart2 },
-    { labelKey: "nav.emailLogs",      href: "/admin/email-logs",      icon: MailCheck },
-    { labelKey: "nav.settings",       href: "/admin/settings",        icon: Settings },
-    { labelKey: "nav.userGuide",      href: "/guide",                 icon: BookOpen },
-    { labelKey: "nav.technicalRef",   href: "/admin/technical-reference", icon: Code2 },
-    { labelKey: "nav.urs",            href: "/admin/urs",                 icon: CheckSquare },
-    { labelKey: "nav.designDoc",      href: "/admin/design-document",     icon: Layers },
-    { labelKey: "nav.testPlan",       href: "/admin/test-plan",           icon: FlaskConical },
-  ];
+  const isDocPage = DOC_HREFS.some((h) => location === h || location.startsWith(`${h}/`));
+  const [docsOpen, setDocsOpen] = useState(isDocPage);
+
+  useEffect(() => {
+    if (isDocPage) setDocsOpen(true);
+  }, [isDocPage]);
 
   const NavItems = () => (
     <>
-      {navItems.map((item) => (
+      {/* Main nav items */}
+      {mainNavItems.map((item) => (
         <SidebarMenuItem key={item.href}>
           <SidebarMenuButton
             asChild
@@ -81,6 +102,40 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           </SidebarMenuButton>
         </SidebarMenuItem>
       ))}
+
+      {/* Documentation collapsible group */}
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          onClick={() => setDocsOpen((o) => !o)}
+          isActive={isDocPage}
+          className="font-medium cursor-pointer"
+        >
+          <LibraryBig className="h-4 w-4" />
+          <span className="flex-1">{t("nav.documentation")}</span>
+          {docsOpen
+            ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
+            : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
+          }
+        </SidebarMenuButton>
+
+        {docsOpen && (
+          <div className="ml-4 mt-0.5 border-l border-sidebar-border pl-3 space-y-0.5">
+            {docItems.map((item) => (
+              <SidebarMenuButton
+                key={item.href}
+                asChild
+                isActive={location === item.href}
+                className="font-medium text-sm h-8"
+              >
+                <Link href={item.href} className="flex items-center gap-3">
+                  <item.icon className="h-3.5 w-3.5" />
+                  <span>{t(item.labelKey)}</span>
+                </Link>
+              </SidebarMenuButton>
+            ))}
+          </div>
+        )}
+      </SidebarMenuItem>
     </>
   );
 

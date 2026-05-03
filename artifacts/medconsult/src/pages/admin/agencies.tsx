@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Plus, CheckCircle2, AlertTriangle, XCircle, Upload, X, ImageIcon, Loader2, Send, FlaskConical } from "lucide-react";
+import { Plus, CheckCircle2, AlertTriangle, XCircle, Upload, X, ImageIcon, Loader2, Send, FlaskConical, ExternalLink } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -742,6 +742,7 @@ export default function AgenciesList() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
+                <TableHead>Website</TableHead>
                 <TableHead>Currency</TableHead>
                 <TableHead>Colours</TableHead>
                 <TableHead>Emails</TableHead>
@@ -791,6 +792,21 @@ export default function AgenciesList() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">{agency.email}</TableCell>
                     <TableCell className="text-muted-foreground">{agency.phone}</TableCell>
+                    <TableCell>
+                      {agency.website ? (
+                        <a
+                          href={agency.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                        >
+                          {agency.website.replace(/^https?:\/\//, "")}
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <span className="font-mono text-sm">
                         {CURRENCY_OPTIONS.find((c) => c.value === agency.currency)?.symbol ?? "£"}{" "}

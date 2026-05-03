@@ -4,8 +4,12 @@ import { HealthCheckResponse } from "@workspace/api-zod";
 const router: IRouter = Router();
 
 router.get("/healthz", (_req, res) => {
-  const data = HealthCheckResponse.parse({ status: "ok" });
-  res.json(data);
+  const result = HealthCheckResponse.safeParse({ status: "ok" });
+  if (!result.success) {
+    res.status(500).json({ error: "Health check schema error" });
+    return;
+  }
+  res.json(result.data);
 });
 
 export default router;

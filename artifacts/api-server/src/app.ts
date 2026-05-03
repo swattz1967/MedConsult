@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
@@ -48,5 +48,25 @@ app.use(
 );
 
 app.use("/api", router);
+
+// JSON 404 for any /api route that did not match
+app.use("/api", (_req: Request, res: Response) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+// Global error handler — must be registered last and have exactly 4 params
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  const status =
+    typeof (err as { status?: unknown }).status === "number"
+      ? (err as { status: number }).status
+      : 500;
+  const message =
+    err instanceof Error ? err.message : "Internal server error";
+  logger.error({ err, status }, "Unhandled error");
+  if (!res.headersSent) {
+    res.status(status).json({ error: message });
+  }
+});
 
 export default app;

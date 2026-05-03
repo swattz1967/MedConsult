@@ -7,6 +7,7 @@ import { shadcn } from '@clerk/themes';
 
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useSyncCurrentUser } from "@workspace/api-client-react";
 import { AgencyProvider } from "@/contexts/AgencyContext";
 
@@ -279,12 +280,14 @@ function ClerkProviderWithRoutes() {
 
 function App() {
   return (
-    <TooltipProvider>
-      <WouterRouter base={basePath}>
-        <ClerkProviderWithRoutes />
-      </WouterRouter>
-      <Toaster />
-    </TooltipProvider>
+    <ErrorBoundary>
+      <TooltipProvider>
+        <WouterRouter base={basePath}>
+          <ClerkProviderWithRoutes />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </ErrorBoundary>
   );
 }
 

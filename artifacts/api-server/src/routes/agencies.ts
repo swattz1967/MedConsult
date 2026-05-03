@@ -12,36 +12,48 @@ import {
 
 const router: IRouter = Router();
 
-router.get("/agencies", async (_req, res): Promise<void> => {
-  const agencies = await db.select().from(agenciesTable).orderBy(agenciesTable.name);
-  res.json(agencies);
+router.get("/agencies", async (_req, res, next): Promise<void> => {
+  try {
+    const agencies = await db.select().from(agenciesTable).orderBy(agenciesTable.name);
+    res.json(agencies);
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.post("/agencies", async (req, res): Promise<void> => {
+router.post("/agencies", async (req, res, next): Promise<void> => {
   const parsed = CreateAgencyBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [agency] = await db.insert(agenciesTable).values(parsed.data).returning();
-  res.status(201).json(agency);
+  try {
+    const [agency] = await db.insert(agenciesTable).values(parsed.data).returning();
+    res.status(201).json(agency);
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.get("/agencies/:id", async (req, res): Promise<void> => {
+router.get("/agencies/:id", async (req, res, next): Promise<void> => {
   const params = GetAgencyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, params.data.id));
-  if (!agency) {
-    res.status(404).json({ error: "Agency not found" });
-    return;
+  try {
+    const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, params.data.id));
+    if (!agency) {
+      res.status(404).json({ error: "Agency not found" });
+      return;
+    }
+    res.json(agency);
+  } catch (err) {
+    next(err);
   }
-  res.json(agency);
 });
 
-router.patch("/agencies/:id", async (req, res): Promise<void> => {
+router.patch("/agencies/:id", async (req, res, next): Promise<void> => {
   const params = UpdateAgencyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -56,60 +68,80 @@ router.patch("/agencies/:id", async (req, res): Promise<void> => {
   for (const [key, value] of Object.entries(parsed.data)) {
     if (value !== null && value !== undefined) cleanData[key] = value;
   }
-  const [agency] = await db.update(agenciesTable).set(cleanData).where(eq(agenciesTable.id, params.data.id)).returning();
-  if (!agency) {
-    res.status(404).json({ error: "Agency not found" });
-    return;
+  try {
+    const [agency] = await db
+      .update(agenciesTable)
+      .set(cleanData)
+      .where(eq(agenciesTable.id, params.data.id))
+      .returning();
+    if (!agency) {
+      res.status(404).json({ error: "Agency not found" });
+      return;
+    }
+    res.json(agency);
+  } catch (err) {
+    next(err);
   }
-  res.json(agency);
 });
 
-router.post("/agencies/:id/regenerate-webhook-secret", async (req, res): Promise<void> => {
+router.post("/agencies/:id/regenerate-webhook-secret", async (req, res, next): Promise<void> => {
   const params = GetAgencyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const newSecret = randomBytes(32).toString("hex");
-  const [agency] = await db
-    .update(agenciesTable)
-    .set({ webhookSecret: newSecret })
-    .where(eq(agenciesTable.id, params.data.id))
-    .returning();
-  if (!agency) {
-    res.status(404).json({ error: "Agency not found" });
-    return;
+  try {
+    const newSecret = randomBytes(32).toString("hex");
+    const [agency] = await db
+      .update(agenciesTable)
+      .set({ webhookSecret: newSecret })
+      .where(eq(agenciesTable.id, params.data.id))
+      .returning();
+    if (!agency) {
+      res.status(404).json({ error: "Agency not found" });
+      return;
+    }
+    res.json({ webhookSecret: newSecret });
+  } catch (err) {
+    next(err);
   }
-  res.json({ webhookSecret: newSecret });
 });
 
-router.post("/agencies/:id/regenerate-api-key", async (req, res): Promise<void> => {
+router.post("/agencies/:id/regenerate-api-key", async (req, res, next): Promise<void> => {
   const params = GetAgencyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const newKey = randomBytes(32).toString("hex");
-  const [agency] = await db
-    .update(agenciesTable)
-    .set({ apiKey: newKey })
-    .where(eq(agenciesTable.id, params.data.id))
-    .returning();
-  if (!agency) {
-    res.status(404).json({ error: "Agency not found" });
-    return;
+  try {
+    const newKey = randomBytes(32).toString("hex");
+    const [agency] = await db
+      .update(agenciesTable)
+      .set({ apiKey: newKey })
+      .where(eq(agenciesTable.id, params.data.id))
+      .returning();
+    if (!agency) {
+      res.status(404).json({ error: "Agency not found" });
+      return;
+    }
+    res.json({ apiKey: newKey });
+  } catch (err) {
+    next(err);
   }
-  res.json({ apiKey: newKey });
 });
 
-router.delete("/agencies/:id", async (req, res): Promise<void> => {
+router.delete("/agencies/:id", async (req, res, next): Promise<void> => {
   const params = DeleteAgencyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  await db.delete(agenciesTable).where(eq(agenciesTable.id, params.data.id));
-  res.sendStatus(204);
+  try {
+    await db.delete(agenciesTable).where(eq(agenciesTable.id, params.data.id));
+    res.sendStatus(204);
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;

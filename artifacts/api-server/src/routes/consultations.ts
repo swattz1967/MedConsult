@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import PDFDocument from "pdfkit";
-import { db, consultationRecordsTable, consultationMediaTable, appointmentsTable, customersTable, surgeonsTable, eventsTable } from "@workspace/db";
+import { db, consultationRecordsTable, consultationMediaTable, appointmentsTable, customersTable, surgeonsTable, eventsTable, agenciesTable } from "@workspace/db";
 import {
   CreateConsultationRecordBody,
   GetConsultationRecordParams,
@@ -119,7 +119,17 @@ router.get("/consultation-records/:id/pdf", async (req, res): Promise<void> => {
   const [customer] = record.customerId ? await db.select().from(customersTable).where(eq(customersTable.id, record.customerId)) : [null];
   const [surgeon] = record.surgeonId ? await db.select().from(surgeonsTable).where(eq(surgeonsTable.id, record.surgeonId)) : [null];
   const [event] = appointment ? await db.select().from(eventsTable).where(eq(eventsTable.id, appointment.eventId)) : [null];
+  const [agency] = event ? await db.select().from(agenciesTable).where(eq(agenciesTable.id, event.agencyId)) : [null];
   const mediaItems = await db.select().from(consultationMediaTable).where(eq(consultationMediaTable.consultationRecordId, id));
+
+  // Try to fetch agency logo as buffer (used in PDF header)
+  let logoBuffer: Buffer | null = null;
+  if (agency?.logoUrl) {
+    try {
+      const imgRes = await fetch(agency.logoUrl);
+      if (imgRes.ok) logoBuffer = Buffer.from(await imgRes.arrayBuffer());
+    } catch { /* skip logo on error */ }
+  }
 
   const bmi = customer?.heightCm && customer?.weightKg
     ? (customer.weightKg / Math.pow(customer.heightCm / 100, 2)).toFixed(1)
@@ -131,16 +141,24 @@ router.get("/consultation-records/:id/pdf", async (req, res): Promise<void> => {
   res.setHeader("Content-Disposition", `attachment; filename="consultation-${id}.pdf"`);
   doc.pipe(res);
 
-  const BRAND = "#1a6b5c";
+  const BRAND = agency?.primaryColor ?? "#1a6b5c";
   const LIGHT = "#f0f9f6";
   const GREY = "#555555";
   const PAGE_WIDTH = doc.page.width - 100;
+  const agencyName = agency?.name ?? "MedConsult";
 
   // Header bar
   doc.rect(0, 0, doc.page.width, 70).fill(BRAND);
-  doc.fillColor("white").fontSize(22).font("Helvetica-Bold")
-    .text("MedConsult", 50, 20);
-  doc.fontSize(11).font("Helvetica")
+  if (logoBuffer) {
+    try {
+      doc.image(logoBuffer, 50, 12, { height: 46, fit: [180, 46] });
+    } catch {
+      doc.fillColor("white").fontSize(22).font("Helvetica-Bold").text(agencyName, 50, 20);
+    }
+  } else {
+    doc.fillColor("white").fontSize(22).font("Helvetica-Bold").text(agencyName, 50, 20);
+  }
+  doc.fillColor("white").fontSize(11).font("Helvetica")
     .text("Consultation Record Report", 50, 46);
   doc.fillColor(BRAND).fontSize(9).font("Helvetica")
     .text(`Generated: ${new Date().toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })}`, 50, 46, { align: "right", width: PAGE_WIDTH });
@@ -300,8 +318,9 @@ router.get("/consultation-records/:id/pdf", async (req, res): Promise<void> => {
   // Footer
   const pageHeight = doc.page.height;
   doc.rect(0, pageHeight - 40, doc.page.width, 40).fill(BRAND);
+  const footerLeft = agency?.email ? `${agencyName} — ${agency.email}` : agencyName;
   doc.fillColor("white").fontSize(9).font("Helvetica")
-    .text(`MedConsult — Confidential Medical Record — Record #${record.id}`, 50, pageHeight - 26, { align: "center", width: PAGE_WIDTH });
+    .text(`${footerLeft} — Confidential Medical Record — #${record.id}`, 50, pageHeight - 26, { align: "center", width: PAGE_WIDTH });
 
   doc.end();
 });

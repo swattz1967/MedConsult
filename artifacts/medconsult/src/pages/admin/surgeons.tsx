@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useListSurgeons, useCreateSurgeon, getListSurgeonsQueryKey } from "@workspace/api-client-react";
+import { useAgency } from "@/contexts/AgencyContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -24,6 +25,7 @@ const surgeonSchema = z.object({
 });
 
 export default function SurgeonsList() {
+  const { agencyId } = useAgency();
   const { data: surgeons, isLoading } = useListSurgeons();
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -38,7 +40,7 @@ export default function SurgeonsList() {
   });
 
   const onSubmit = (values: z.infer<typeof surgeonSchema>) => {
-    createSurgeon.mutate({ data: { ...values, agencyId: 1 } }, {
+    createSurgeon.mutate({ data: { ...values, agencyId } }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListSurgeonsQueryKey() });
         setOpen(false);

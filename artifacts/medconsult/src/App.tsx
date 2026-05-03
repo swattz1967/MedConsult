@@ -8,6 +8,7 @@ import { shadcn } from '@clerk/themes';
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useSyncCurrentUser } from "@workspace/api-client-react";
+import { AgencyProvider } from "@/contexts/AgencyContext";
 
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
@@ -240,6 +241,7 @@ function ClerkProviderWithRoutes() {
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
+        <AgencyProvider>
         <ClerkQueryClientCacheInvalidator />
         <Switch>
           <Route path="/" component={HomeRedirect} />
@@ -257,6 +259,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/portal/*" component={PortalRouter} />
           <Route component={NotFound} />
         </Switch>
+        </AgencyProvider>
       </QueryClientProvider>
     </ClerkProvider>
   );

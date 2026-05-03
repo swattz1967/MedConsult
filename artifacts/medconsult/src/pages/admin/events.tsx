@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useListEvents, useCreateEvent, getListEventsQueryKey } from "@workspace/api-client-react";
+import { useAgency } from "@/contexts/AgencyContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -28,6 +29,7 @@ const eventSchema = z.object({
 });
 
 export default function EventsList() {
+  const { agencyId } = useAgency();
   const { data: events, isLoading } = useListEvents();
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -44,7 +46,7 @@ export default function EventsList() {
   const onSubmit = (values: z.infer<typeof eventSchema>) => {
     createEvent.mutate({ data: {
       ...values,
-      agencyId: 1,
+      agencyId,
       startDate: new Date(values.startDate).toISOString(),
       endDate: new Date(values.endDate).toISOString(),
     }}, {

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useListAppointments, useListSurgeons, useListEvents } from "@workspace/api-client-react";
+import { useAgency } from "@/contexts/AgencyContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,10 +31,6 @@ const STATUS_LABELS: Record<string, string> = {
 
 const CHART_COLORS = ["#145c4b", "#22c55e", "#0ea5e9", "#a855f7", "#f59e0b", "#ec4899"];
 
-function fmtGBP(n: number): string {
-  return `£${n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
 function fmt(n: number, decimals = 0): string {
   return n.toLocaleString("en-GB", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
@@ -49,6 +46,7 @@ interface SurgeonRevRow {
 }
 
 export default function AdminReports() {
+  const { formatCurrency } = useAgency();
   const [range, setRange] = useState<Range>("all");
   const [revSort, setRevSort] = useState<keyof SurgeonRevRow>("earned");
 
@@ -273,7 +271,7 @@ export default function AdminReports() {
             <PoundSterling className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-emerald-700">{fmtGBP(kpis.earned)}</div>
+            <div className="text-3xl font-bold text-emerald-700">{formatCurrency(kpis.earned)}</div>
             <div className="text-xs text-muted-foreground mt-1">From completed appointments</div>
           </CardContent>
         </Card>
@@ -284,7 +282,7 @@ export default function AdminReports() {
             <ArrowUpRight className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-blue-700">{fmtGBP(kpis.pending)}</div>
+            <div className="text-3xl font-bold text-blue-700">{formatCurrency(kpis.pending)}</div>
             <div className="text-xs text-muted-foreground mt-1">Scheduled appointments</div>
           </CardContent>
         </Card>
@@ -295,7 +293,7 @@ export default function AdminReports() {
             <TrendingDown className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-red-700">{fmtGBP(kpis.lost)}</div>
+            <div className="text-3xl font-bold text-red-700">{formatCurrency(kpis.lost)}</div>
             <div className="text-xs text-muted-foreground mt-1">Cancelled &amp; no-shows</div>
           </CardContent>
         </Card>
@@ -398,11 +396,11 @@ export default function AdminReports() {
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
                 <XAxis
                   type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false}
-                  tickFormatter={(v) => `£${v}`}
+                  tickFormatter={(v) => formatCurrency(Number(v))}
                 />
                 <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={110} tickLine={false} />
                 <Tooltip
-                  formatter={(v, name) => [fmtGBP(Number(v)), name]}
+                  formatter={(v, name) => [formatCurrency(Number(v)), name]}
                   labelStyle={{ fontWeight: 600, marginBottom: 4 }}
                 />
                 <Legend iconType="square" iconSize={10} formatter={(val) => <span className="text-xs">{val}</span>} />
@@ -438,16 +436,16 @@ export default function AdminReports() {
                         <td className="px-4 py-3 font-medium">{row.name}</td>
                         <td className="px-4 py-3 text-right text-muted-foreground">{row.appointments}</td>
                         <td className="px-4 py-3 text-right font-semibold text-emerald-700">
-                          {row.earned > 0 ? fmtGBP(row.earned) : <span className="text-muted-foreground font-normal">—</span>}
+                          {row.earned > 0 ? formatCurrency(row.earned) : <span className="text-muted-foreground font-normal">—</span>}
                         </td>
                         <td className="px-4 py-3 text-right text-blue-700">
-                          {row.pending > 0 ? fmtGBP(row.pending) : <span className="text-muted-foreground">—</span>}
+                          {row.pending > 0 ? formatCurrency(row.pending) : <span className="text-muted-foreground">—</span>}
                         </td>
                         <td className="px-4 py-3 text-right text-red-700">
-                          {row.lost > 0 ? fmtGBP(row.lost) : <span className="text-muted-foreground">—</span>}
+                          {row.lost > 0 ? formatCurrency(row.lost) : <span className="text-muted-foreground">—</span>}
                         </td>
                         <td className="px-4 py-3 text-right font-semibold">
-                          {fmtGBP(row.total)}
+                          {formatCurrency(row.total)}
                         </td>
                         <td className="px-4 py-3 text-right hidden sm:table-cell">
                           <div className="flex items-center justify-end gap-2">
@@ -470,10 +468,10 @@ export default function AdminReports() {
                   <tr className="border-t-2 bg-muted/30">
                     <td className="px-4 py-3 font-semibold">Total</td>
                     <td className="px-4 py-3 text-right font-semibold">{revTotals.appointments}</td>
-                    <td className="px-4 py-3 text-right font-bold text-emerald-700">{fmtGBP(revTotals.earned)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-blue-700">{fmtGBP(revTotals.pending)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-red-700">{fmtGBP(revTotals.lost)}</td>
-                    <td className="px-4 py-3 text-right font-bold">{fmtGBP(revTotals.total)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-emerald-700">{formatCurrency(revTotals.earned)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-blue-700">{formatCurrency(revTotals.pending)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-red-700">{formatCurrency(revTotals.lost)}</td>
+                    <td className="px-4 py-3 text-right font-bold">{formatCurrency(revTotals.total)}</td>
                     <td className="hidden sm:table-cell" />
                   </tr>
                 </tfoot>
@@ -590,7 +588,7 @@ export default function AdminReports() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-right font-medium">
-                          {a.fee != null ? fmtGBP(a.fee) : <span className="text-muted-foreground">—</span>}
+                          {a.fee != null ? formatCurrency(a.fee) : <span className="text-muted-foreground">—</span>}
                         </td>
                       </tr>
                     ))

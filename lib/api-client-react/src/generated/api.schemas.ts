@@ -9,6 +9,15 @@ export interface HealthStatus {
   status: string;
 }
 
+export type AgencyCurrency =
+  (typeof AgencyCurrency)[keyof typeof AgencyCurrency];
+
+export const AgencyCurrency = {
+  GBP: "GBP",
+  EUR: "EUR",
+  TRY: "TRY",
+} as const;
+
 export interface Agency {
   id: number;
   name: string;
@@ -26,9 +35,19 @@ export interface Agency {
   phone?: string | null;
   /** @nullable */
   address?: string | null;
+  currency: AgencyCurrency;
   createdAt: string;
   updatedAt: string;
 }
+
+export type CreateAgencyBodyCurrency =
+  (typeof CreateAgencyBodyCurrency)[keyof typeof CreateAgencyBodyCurrency];
+
+export const CreateAgencyBodyCurrency = {
+  GBP: "GBP",
+  EUR: "EUR",
+  TRY: "TRY",
+} as const;
 
 export interface CreateAgencyBody {
   name: string;
@@ -46,7 +65,17 @@ export interface CreateAgencyBody {
   phone?: string | null;
   /** @nullable */
   address?: string | null;
+  currency?: CreateAgencyBodyCurrency;
 }
+
+export type UpdateAgencyBodyCurrency =
+  (typeof UpdateAgencyBodyCurrency)[keyof typeof UpdateAgencyBodyCurrency];
+
+export const UpdateAgencyBodyCurrency = {
+  GBP: "GBP",
+  EUR: "EUR",
+  TRY: "TRY",
+} as const;
 
 export interface UpdateAgencyBody {
   /** @nullable */
@@ -65,6 +94,7 @@ export interface UpdateAgencyBody {
   phone?: string | null;
   /** @nullable */
   address?: string | null;
+  currency?: UpdateAgencyBodyCurrency;
 }
 
 export type UserProfileRole =

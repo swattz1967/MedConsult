@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useListAgencies, useGetReminderSettings, useUpsertReminderSettings } from "@workspace/api-client-react";
+import { useGetReminderSettings, useUpsertReminderSettings } from "@workspace/api-client-react";
+import { useAgency } from "@/contexts/AgencyContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,8 +24,7 @@ const DAY_OPTIONS = [1, 2, 3, 5, 7, 14] as const;
 
 export default function AdminSettings() {
   const { toast } = useToast();
-  const { data: agencies, isLoading: isLoadingAgencies } = useListAgencies();
-  const agencyId = agencies?.[0]?.id;
+  const { agencyId, isLoading: isLoadingAgencies } = useAgency();
 
   const {
     data: settings,
@@ -72,7 +72,7 @@ export default function AdminSettings() {
     );
   };
 
-  const isLoading = isLoadingAgencies || (!!agencyId && isLoadingSettings);
+  const isLoading = isLoadingAgencies || isLoadingSettings;
   const notConfigured = !isLoading && !!agencyId && !!settingsError;
 
   return (

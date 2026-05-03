@@ -17,6 +17,8 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary List all agencies
  */
+export const listAgenciesResponseCurrencyDefault = `GBP`;
+
 export const ListAgenciesResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
@@ -27,6 +29,9 @@ export const ListAgenciesResponseItem = zod.object({
   website: zod.string().nullish(),
   phone: zod.string().nullish(),
   address: zod.string().nullish(),
+  currency: zod
+    .enum(["GBP", "EUR", "TRY"])
+    .default(listAgenciesResponseCurrencyDefault),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -44,6 +49,7 @@ export const CreateAgencyBody = zod.object({
   website: zod.string().nullish(),
   phone: zod.string().nullish(),
   address: zod.string().nullish(),
+  currency: zod.enum(["GBP", "EUR", "TRY"]).optional(),
 });
 
 /**
@@ -52,6 +58,8 @@ export const CreateAgencyBody = zod.object({
 export const GetAgencyParams = zod.object({
   id: zod.coerce.number(),
 });
+
+export const getAgencyResponseCurrencyDefault = `GBP`;
 
 export const GetAgencyResponse = zod.object({
   id: zod.number(),
@@ -63,6 +71,9 @@ export const GetAgencyResponse = zod.object({
   website: zod.string().nullish(),
   phone: zod.string().nullish(),
   address: zod.string().nullish(),
+  currency: zod
+    .enum(["GBP", "EUR", "TRY"])
+    .default(getAgencyResponseCurrencyDefault),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -83,7 +94,10 @@ export const UpdateAgencyBody = zod.object({
   website: zod.string().nullish(),
   phone: zod.string().nullish(),
   address: zod.string().nullish(),
+  currency: zod.enum(["GBP", "EUR", "TRY"]).optional(),
 });
+
+export const updateAgencyResponseCurrencyDefault = `GBP`;
 
 export const UpdateAgencyResponse = zod.object({
   id: zod.number(),
@@ -95,6 +109,9 @@ export const UpdateAgencyResponse = zod.object({
   website: zod.string().nullish(),
   phone: zod.string().nullish(),
   address: zod.string().nullish(),
+  currency: zod
+    .enum(["GBP", "EUR", "TRY"])
+    .default(updateAgencyResponseCurrencyDefault),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });

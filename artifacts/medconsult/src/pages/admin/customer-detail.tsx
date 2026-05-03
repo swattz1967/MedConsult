@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "wouter";
 import { useGetCustomer, useUpdateCustomer, useUpdateAppointment, getGetCustomerQueryKey, useListAppointments, getListAppointmentsQueryKey, useSendDeclarationReminder, type Appointment } from "@workspace/api-client-react";
+import { useAgency } from "@/contexts/AgencyContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -208,6 +209,7 @@ function bmiCategory(bmi: number): { label: string; color: string } {
 }
 
 export default function CustomerDetail() {
+  const { formatCurrency } = useAgency();
   const { id } = useParams();
   const customerId = Number(id);
   const queryClient = useQueryClient();
@@ -593,7 +595,7 @@ export default function CustomerDetail() {
                         )}
                         {appt.fee != null && (
                           <span className="ml-1.5 text-xs font-medium text-foreground/70 bg-muted px-1.5 py-0.5 rounded">
-                            £{Number(appt.fee).toFixed(2)}
+                            {formatCurrency(Number(appt.fee))}
                           </span>
                         )}
                       </div>
@@ -702,7 +704,7 @@ export default function CustomerDetail() {
                         <span className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
                         <span className="text-muted-foreground">Pending</span>
                         <span className="font-semibold text-foreground">
-                          £{pending.toFixed(2)}
+                          {formatCurrency(pending)}
                         </span>
                       </div>
                     )}
@@ -711,7 +713,7 @@ export default function CustomerDetail() {
                         <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
                         <span className="text-muted-foreground">Earned</span>
                         <span className="font-semibold text-foreground">
-                          £{earned.toFixed(2)}
+                          {formatCurrency(earned)}
                         </span>
                       </div>
                     )}
@@ -720,7 +722,7 @@ export default function CustomerDetail() {
                         <span className="h-2 w-2 rounded-full bg-muted-foreground/40 shrink-0" />
                         <span className="text-muted-foreground">Lost</span>
                         <span className="font-medium text-muted-foreground line-through">
-                          £{lost.toFixed(2)}
+                          {formatCurrency(lost)}
                         </span>
                       </div>
                     )}
@@ -728,7 +730,7 @@ export default function CustomerDetail() {
                   <div className="flex items-center gap-1.5 ml-auto">
                     <span className="text-muted-foreground">Total</span>
                     <span className="font-bold text-sm text-foreground">
-                      £{total.toFixed(2)}
+                      {formatCurrency(total)}
                     </span>
                   </div>
                 </div>

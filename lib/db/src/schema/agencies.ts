@@ -12,6 +12,7 @@ export const agenciesTable = pgTable("agencies", {
   website: text("website"),
   phone: text("phone"),
   address: text("address"),
+  currency: text("currency").notNull().default("GBP"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

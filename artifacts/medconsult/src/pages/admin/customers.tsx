@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { useListCustomers, sendDeclarationReminder } from "@workspace/api-client-react";
+import { useAgency } from "@/contexts/AgencyContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -28,6 +29,7 @@ type Filter = "all" | "signed" | "unsigned";
 type SendState = "idle" | "sending" | "sent" | "error";
 
 export default function CustomersList() {
+  const { formatCurrency } = useAgency();
   const { data: customers, isLoading } = useListCustomers();
   const { toast } = useToast();
 
@@ -243,7 +245,7 @@ export default function CustomersList() {
               <div>
                 <div className="text-xs text-muted-foreground">Total Earned</div>
                 <div className="text-2xl font-bold leading-tight text-emerald-700">
-                  {isLoading ? <Skeleton className="h-6 w-16" /> : `£${stats.totalEarned.toFixed(2)}`}
+                  {isLoading ? <Skeleton className="h-6 w-16" /> : formatCurrency(stats.totalEarned)}
                 </div>
               </div>
             </div>
@@ -251,7 +253,7 @@ export default function CustomersList() {
             <div>
               <div className="text-xs text-muted-foreground">Pending (scheduled)</div>
               <div className="text-xl font-semibold leading-tight text-muted-foreground">
-                {isLoading ? <Skeleton className="h-5 w-14" /> : `£${stats.totalPending.toFixed(2)}`}
+                {isLoading ? <Skeleton className="h-5 w-14" /> : formatCurrency(stats.totalPending)}
               </div>
             </div>
             <div className="h-10 w-px bg-border hidden sm:block" />
@@ -260,7 +262,7 @@ export default function CustomersList() {
               <div className="text-xl font-semibold leading-tight">
                 {isLoading
                   ? <Skeleton className="h-5 w-16" />
-                  : `£${(stats.totalEarned + stats.totalPending).toFixed(2)}`}
+                  : formatCurrency(stats.totalEarned + stats.totalPending)}
               </div>
             </div>
           </CardContent>
@@ -487,12 +489,12 @@ export default function CustomersList() {
                           <div className="space-y-0.5">
                             {(customer.earnedFees ?? 0) > 0 && (
                               <div className="text-sm font-semibold text-emerald-700">
-                                £{(customer.earnedFees ?? 0).toFixed(2)}
+                                {formatCurrency(customer.earnedFees ?? 0)}
                               </div>
                             )}
                             {(customer.pendingFees ?? 0) > 0 && (
                               <div className="text-xs text-muted-foreground">
-                                +£{(customer.pendingFees ?? 0).toFixed(2)} pending
+                                +{formatCurrency(customer.pendingFees ?? 0)} pending
                               </div>
                             )}
                           </div>

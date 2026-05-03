@@ -9,10 +9,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
+import { CURRENCY_OPTIONS } from "@/lib/currency";
 
 const agencySchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -22,28 +24,33 @@ const agencySchema = z.object({
   primaryColor: z.string().optional().or(z.literal("")),
   secondaryColor: z.string().optional().or(z.literal("")),
   logoUrl: z.string().url().optional().or(z.literal("")),
-  address: z.string().optional().or(z.literal(""))
+  address: z.string().optional().or(z.literal("")),
+  currency: z.enum(["GBP", "EUR", "TRY"]).default("GBP"),
 });
+
+type AgencyFormValues = z.infer<typeof agencySchema>;
 
 export default function AgenciesList() {
   const { data: agencies, isLoading } = useListAgencies();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  
+
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   const createAgency = useCreateAgency();
   const updateAgency = useUpdateAgency();
 
-  const form = useForm<z.infer<typeof agencySchema>>({
+  const form = useForm<AgencyFormValues>({
     resolver: zodResolver(agencySchema),
     defaultValues: {
-      name: "", email: "", phone: "", website: "", primaryColor: "", secondaryColor: "", logoUrl: "", address: ""
+      name: "", email: "", phone: "", website: "",
+      primaryColor: "", secondaryColor: "", logoUrl: "", address: "",
+      currency: "GBP",
     }
   });
 
-  const onSubmit = (values: z.infer<typeof agencySchema>) => {
+  const onSubmit = (values: AgencyFormValues) => {
     if (editingId) {
       updateAgency.mutate({ id: editingId, data: values }, {
         onSuccess: () => {
@@ -73,7 +80,8 @@ export default function AgenciesList() {
       primaryColor: agency.primaryColor || "",
       secondaryColor: agency.secondaryColor || "",
       logoUrl: agency.logoUrl || "",
-      address: agency.address || ""
+      address: agency.address || "",
+      currency: agency.currency || "GBP",
     });
     setOpen(true);
   };
@@ -81,7 +89,9 @@ export default function AgenciesList() {
   const openCreate = () => {
     setEditingId(null);
     form.reset({
-      name: "", email: "", phone: "", website: "", primaryColor: "", secondaryColor: "", logoUrl: "", address: ""
+      name: "", email: "", phone: "", website: "",
+      primaryColor: "", secondaryColor: "", logoUrl: "", address: "",
+      currency: "GBP",
     });
     setOpen(true);
   };
@@ -117,13 +127,33 @@ export default function AgenciesList() {
                     <FormItem><FormLabel>Website</FormLabel><FormControl><Input {...field} type="url" /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="primaryColor" render={({ field }) => (
-                    <FormItem><FormLabel>Primary Color (Hex)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormItem><FormLabel>Primary Color (Hex)</FormLabel><FormControl><Input {...field} placeholder="#1a6b5c" /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="secondaryColor" render={({ field }) => (
                     <FormItem><FormLabel>Secondary Color (Hex)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
+                  <FormField control={form.control} name="currency" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Currency</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select currency" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {CURRENCY_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.symbol} {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
                   <FormField control={form.control} name="logoUrl" render={({ field }) => (
-                    <FormItem className="col-span-2"><FormLabel>Logo URL</FormLabel><FormControl><Input {...field} type="url" /></FormControl><FormMessage /></FormItem>
+                    <FormItem><FormLabel>Logo URL</FormLabel><FormControl><Input {...field} type="url" /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="address" render={({ field }) => (
                     <FormItem className="col-span-2"><FormLabel>Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
@@ -146,6 +176,7 @@ export default function AgenciesList() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
+                <TableHead>Currency</TableHead>
                 <TableHead>Website</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -157,13 +188,14 @@ export default function AgenciesList() {
                     <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-[200px]" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-[60px]" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : agencies?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                     No agencies found.
                   </TableCell>
                 </TableRow>
@@ -172,14 +204,24 @@ export default function AgenciesList() {
                   <TableRow key={agency.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
-                        {agency.logoUrl && <img src={agency.logoUrl} alt={agency.name} className="w-6 h-6 rounded-full" />}
+                        {agency.logoUrl && <img src={agency.logoUrl} alt={agency.name} className="w-6 h-6 rounded-full object-contain" />}
                         {agency.name}
                       </div>
                     </TableCell>
                     <TableCell>{agency.email}</TableCell>
                     <TableCell>{agency.phone}</TableCell>
                     <TableCell>
-                      {agency.website && <a href={agency.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{agency.website}</a>}
+                      <span className="font-mono text-sm">
+                        {CURRENCY_OPTIONS.find((c) => c.value === agency.currency)?.symbol ?? "£"}{" "}
+                        {agency.currency ?? "GBP"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {agency.website && (
+                        <a href={agency.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                          {agency.website}
+                        </a>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="outline" size="sm" onClick={() => openEdit(agency)}>Edit</Button>

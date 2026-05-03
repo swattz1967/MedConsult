@@ -1584,6 +1584,10 @@ components:
           type: ["string", "null"]
         address:
           type: ["string", "null"]
+        currency:
+          type: string
+          enum: [GBP, EUR, TRY]
+          default: GBP
         createdAt:
           type: string
         updatedAt:
@@ -1591,6 +1595,7 @@ components:
       required:
         - id
         - name
+        - currency
         - createdAt
         - updatedAt
 
@@ -1613,6 +1618,9 @@ components:
           type: ["string", "null"]
         address:
           type: ["string", "null"]
+        currency:
+          type: string
+          enum: [GBP, EUR, TRY]
       required:
         - name
 
@@ -1635,6 +1643,9 @@ components:
           type: ["string", "null"]
         address:
           type: ["string", "null"]
+        currency:
+          type: string
+          enum: [GBP, EUR, TRY]
 
     UserProfile:
       type: object

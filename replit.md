@@ -17,6 +17,7 @@ pnpm workspace monorepo using TypeScript.
 - **API codegen**: Orval (from OpenAPI spec)
 - **Frontend**: React + Vite + Tailwind CSS + shadcn/ui
 - **Auth**: Clerk
+- **i18n**: react-i18next + i18next-browser-languagedetector (en / pt-BR / es)
 - **Build**: esbuild (CJS bundle)
 
 ## Architecture
@@ -50,6 +51,36 @@ pnpm workspace monorepo using TypeScript.
 - Customers: IDs 1-3
 - Questionnaire templates: IDs 1-3
 
+## Multi-Currency
+
+- Agency has `currency` field: `GBP | EUR | TRY` (default `GBP`)
+- `lib/currency.ts` — `formatCurrency(amount, currencyCode)` using Intl
+- `AgencyContext` (`contexts/AgencyContext.tsx`) — provides `formatCurrency(amount)` bound to current agency
+- All monetary displays in customers, customer-detail, and reports use `formatCurrency` from `useAgency()`
+
+## i18n
+
+- Bootstrap: `src/i18n/index.ts` (imported as side-effect in `main.tsx`)
+- Languages: `en`, `pt-BR`, `es` — files at `src/i18n/locales/*.json`
+- Language stored in localStorage key `medconsult_lang`
+- Language switcher dropdown in admin header (`admin-layout.tsx`)
+- Translation keys: `nav.*`, `common.*`, `status.*`, `pages.*`, `appointment.*`, `currency.*`, `language.*`
+
+## Multi-Tenant Agency Context
+
+- `AgencyContext` wraps all routes inside `QueryClientProvider` in `App.tsx`
+- Provides: `currentAgency`, `agencyId`, `agencies`, `setCurrentAgencyId`, `formatCurrency`, `isLoading`
+- Selected agency stored in localStorage key `medconsult_agency_id`
+- Agency switcher shown in sidebar when multiple agencies exist
+- Sidebar shows agency logo (if set) or name initial + truncated name
+
+## PDF Branding
+
+- Consultation PDF route (`artifacts/api-server/src/routes/consultations.ts`) fetches agency from `event.agencyId`
+- Uses `agency.primaryColor` for brand colour (fallback `#1a6b5c`)
+- Shows `agency.name` (or logo image if `logoUrl` is set and fetchable) in PDF header
+- Footer shows `agency.name — agency.email — Record #id`
+
 ## Important Notes
 
 - Hook pattern: `useGetThing(id)` — generated hooks have built-in `enabled: !!id` guards
@@ -64,6 +95,7 @@ pnpm workspace monorepo using TypeScript.
 - `UserProfile` has `surgeonId` and `customerId` (not nested `.surgeon.id`)
 - `QuestionnaireWithQuestions` is a flat object with `.name`, `.type`, `.questions[]` (no `.questionnaire` nesting)
 - Config routes require injecting `type` field: `CreateNationalityBody.safeParse({ ...req.body, type: "nationality" })`
+- TS errors in `objectStorage.ts` and `storage.ts` are pre-existing — always ignore in typecheck output
 
 ## Email Notifications
 

@@ -14,6 +14,7 @@ import storageRouter from "./storage";
 import reminderSettingsRouter from "./reminder-settings";
 import emailPreviewRouter from "./email-preview";
 import emailLogsRouter from "./email-logs";
+import publicCustomersRouter from "./public-customers";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(storageRouter);
 router.use(reminderSettingsRouter);
 router.use(emailPreviewRouter);
 router.use(emailLogsRouter);
+router.use(publicCustomersRouter);
 
 export default router;

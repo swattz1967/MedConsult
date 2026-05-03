@@ -32,6 +32,7 @@ export const ListAgenciesResponseItem = zod.object({
   currency: zod
     .enum(["GBP", "EUR", "TRY"])
     .default(listAgenciesResponseCurrencyDefault),
+  apiKey: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -74,6 +75,7 @@ export const GetAgencyResponse = zod.object({
   currency: zod
     .enum(["GBP", "EUR", "TRY"])
     .default(getAgencyResponseCurrencyDefault),
+  apiKey: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -112,6 +114,7 @@ export const UpdateAgencyResponse = zod.object({
   currency: zod
     .enum(["GBP", "EUR", "TRY"])
     .default(updateAgencyResponseCurrencyDefault),
+  apiKey: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -121,6 +124,43 @@ export const UpdateAgencyResponse = zod.object({
  */
 export const DeleteAgencyParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary Regenerate the agency's external API key
+ */
+export const RegenerateAgencyApiKeyParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const RegenerateAgencyApiKeyResponse = zod.object({
+  apiKey: zod.string(),
+});
+
+/**
+ * @summary Register a customer via external API key (no auth session required)
+ */
+export const PublicRegisterCustomerHeader = zod.object({
+  "X-API-Key": zod
+    .string()
+    .describe("Agency API key obtained from the MedConsult agency settings"),
+});
+
+export const PublicRegisterCustomerBody = zod.object({
+  firstName: zod.string(),
+  lastName: zod.string(),
+  email: zod.string().nullish(),
+  phone: zod.string().nullish(),
+  dialingCode: zod.string().nullish(),
+  nationality: zod.string().nullish(),
+  address: zod.string().nullish(),
+  postcode: zod.string().nullish(),
+  preferredLanguage: zod.string().nullish(),
+  medicalServicesInterest: zod.string().nullish(),
+  heightCm: zod.number().nullish(),
+  weightKg: zod.number().nullish(),
+  heightUnit: zod.string().nullish(),
+  weightUnit: zod.string().nullish(),
 });
 
 /**

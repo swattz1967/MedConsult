@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
-import { useListAgencies, useCreateAgency, useUpdateAgency, getListAgenciesQueryKey, useGetEmailStats } from "@workspace/api-client-react";
+import { useListAgencies, useCreateAgency, useUpdateAgency, getListAgenciesQueryKey, useGetEmailStats, useRegenerateAgencyApiKey } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Plus, CheckCircle2, AlertTriangle, XCircle, Upload, X, ImageIcon, Loader2, Send, FlaskConical, ExternalLink, Search } from "lucide-react";
+import { Plus, CheckCircle2, AlertTriangle, XCircle, Upload, X, ImageIcon, Loader2, Send, FlaskConical, ExternalLink, Search, RefreshCw, Copy, Eye, EyeOff, Key } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -504,6 +504,9 @@ export default function AgenciesList() {
   const { data: emailStats } = useGetEmailStats();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [agencyApiKey, setAgencyApiKey] = useState<string | null>(null);
+  const [keyVisible, setKeyVisible] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
 
   const filteredAgencies = query.trim()
     ? (agencies ?? []).filter((a) => {
@@ -521,6 +524,7 @@ export default function AgenciesList() {
   const { toast } = useToast();
   const createAgency = useCreateAgency();
   const updateAgency = useUpdateAgency();
+  const regenerateKey = useRegenerateAgencyApiKey();
 
   const form = useForm<AgencyFormValues>({
     resolver: zodResolver(agencySchema),
@@ -558,6 +562,9 @@ export default function AgenciesList() {
 
   const openEdit = (agency: any) => {
     setEditingId(agency.id);
+    setAgencyApiKey(agency.apiKey ?? null);
+    setKeyVisible(false);
+    setKeyCopied(false);
     form.reset({
       name: agency.name || "",
       email: agency.email || "",
@@ -570,6 +577,29 @@ export default function AgenciesList() {
       currency: agency.currency || "GBP",
     });
     setOpen(true);
+  };
+
+  const handleCopyKey = () => {
+    if (!agencyApiKey) return;
+    navigator.clipboard.writeText(agencyApiKey).then(() => {
+      setKeyCopied(true);
+      setTimeout(() => setKeyCopied(false), 2000);
+    });
+  };
+
+  const handleRegenerateKey = () => {
+    if (!editingId) return;
+    regenerateKey.mutate({ id: editingId }, {
+      onSuccess: (data) => {
+        setAgencyApiKey(data.apiKey);
+        setKeyVisible(true);
+        queryClient.invalidateQueries({ queryKey: getListAgenciesQueryKey() });
+        toast({ title: "API key regenerated", description: "Copy the new key — it won't be shown again once you close this dialog." });
+      },
+      onError: () => {
+        toast({ title: "Failed to regenerate key", variant: "destructive" });
+      },
+    });
   };
 
   const openCreate = () => {
@@ -747,6 +777,81 @@ export default function AgenciesList() {
                     />
                   </div>
                 </div>
+
+                {/* ── External API Integration (edit mode only) ── */}
+                {editingId && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                      <Key className="h-3.5 w-3.5" />
+                      External API Integration
+                    </p>
+                    <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        Use this API key to register customers from an external booking app (e.g.{" "}
+                        <span className="font-medium text-foreground">www.beespoke-med-istanbul.com</span>).
+                        Send a <code className="text-xs bg-muted px-1 py-0.5 rounded">POST</code> request to{" "}
+                        <code className="text-xs bg-muted px-1 py-0.5 rounded break-all">/api/public/customers</code>{" "}
+                        with the <code className="text-xs bg-muted px-1 py-0.5 rounded">X-API-Key</code> header.
+                      </p>
+
+                      {agencyApiKey ? (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">API Key</Label>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 relative">
+                              <Input
+                                readOnly
+                                value={keyVisible ? agencyApiKey : "•".repeat(32)}
+                                className="font-mono text-xs pr-10"
+                              />
+                            </div>
+                            <Button type="button" variant="outline" size="sm" className="h-9 w-9 p-0 shrink-0"
+                              onClick={() => setKeyVisible(!keyVisible)}
+                              title={keyVisible ? "Hide key" : "Reveal key"}
+                            >
+                              {keyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                            <Button type="button" variant="outline" size="sm" className="h-9 w-9 p-0 shrink-0"
+                              onClick={handleCopyKey}
+                              title="Copy key"
+                            >
+                              {keyCopied ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2.5 text-sm text-muted-foreground">
+                          <Key className="h-4 w-4 shrink-0" />
+                          <span>No API key generated yet. Click "Generate Key" to create one.</span>
+                        </div>
+                      )}
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={handleRegenerateKey}
+                        disabled={regenerateKey.isPending}
+                      >
+                        {regenerateKey.isPending
+                          ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
+                          : <><RefreshCw className="h-3.5 w-3.5" /> {agencyApiKey ? "Regenerate Key" : "Generate Key"}</>
+                        }
+                      </Button>
+
+                      {agencyApiKey && (
+                        <div className="rounded-md bg-muted/60 border p-3 space-y-1.5">
+                          <p className="text-xs font-semibold text-muted-foreground">Example request</p>
+                          <pre className="text-[11px] text-foreground whitespace-pre-wrap break-all leading-5">{`curl -X POST https://your-domain.com/api/public/customers \\
+  -H "X-API-Key: ${keyVisible ? agencyApiKey : "<your-api-key>"}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"firstName":"Jane","lastName":"Doe","email":"jane@example.com"}'`}</pre>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex justify-end pt-2">
                   <Button

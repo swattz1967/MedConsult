@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
+import { randomBytes } from "crypto";
 import { db, agenciesTable } from "@workspace/db";
 import {
   CreateAgencyBody,
@@ -61,6 +62,25 @@ router.patch("/agencies/:id", async (req, res): Promise<void> => {
     return;
   }
   res.json(agency);
+});
+
+router.post("/agencies/:id/regenerate-api-key", async (req, res): Promise<void> => {
+  const params = GetAgencyParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const newKey = randomBytes(32).toString("hex");
+  const [agency] = await db
+    .update(agenciesTable)
+    .set({ apiKey: newKey })
+    .where(eq(agenciesTable.id, params.data.id))
+    .returning();
+  if (!agency) {
+    res.status(404).json({ error: "Agency not found" });
+    return;
+  }
+  res.json({ apiKey: newKey });
 });
 
 router.delete("/agencies/:id", async (req, res): Promise<void> => {

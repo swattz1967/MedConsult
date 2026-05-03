@@ -18,6 +18,7 @@ import type {
 
 import type {
   Agency,
+  AgencyApiKeyResponse,
   AgencyEmailStats,
   Appointment,
   ConfigItem,
@@ -58,6 +59,7 @@ import type {
   ListSurgeonsParams,
   ListUsersParams,
   Procedure,
+  PublicRegisterCustomerBody,
   Question,
   Questionnaire,
   QuestionnaireResponse,
@@ -583,6 +585,177 @@ export const useDeleteAgency = <
   TContext
 > => {
   return useMutation(getDeleteAgencyMutationOptions(options));
+};
+
+/**
+ * @summary Regenerate the agency's external API key
+ */
+export const getRegenerateAgencyApiKeyUrl = (id: number) => {
+  return `/api/agencies/${id}/regenerate-api-key`;
+};
+
+export const regenerateAgencyApiKey = async (
+  id: number,
+  options?: RequestInit,
+): Promise<AgencyApiKeyResponse> => {
+  return customFetch<AgencyApiKeyResponse>(getRegenerateAgencyApiKeyUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRegenerateAgencyApiKeyMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateAgencyApiKey>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof regenerateAgencyApiKey>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["regenerateAgencyApiKey"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof regenerateAgencyApiKey>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return regenerateAgencyApiKey(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegenerateAgencyApiKeyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof regenerateAgencyApiKey>>
+>;
+
+export type RegenerateAgencyApiKeyMutationError = ErrorType<void>;
+
+/**
+ * @summary Regenerate the agency's external API key
+ */
+export const useRegenerateAgencyApiKey = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateAgencyApiKey>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof regenerateAgencyApiKey>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRegenerateAgencyApiKeyMutationOptions(options));
+};
+
+/**
+ * @summary Register a customer via external API key (no auth session required)
+ */
+export const getPublicRegisterCustomerUrl = () => {
+  return `/api/public/customers`;
+};
+
+export const publicRegisterCustomer = async (
+  publicRegisterCustomerBody: PublicRegisterCustomerBody,
+  options?: RequestInit,
+): Promise<Customer> => {
+  return customFetch<Customer>(getPublicRegisterCustomerUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(publicRegisterCustomerBody),
+  });
+};
+
+export const getPublicRegisterCustomerMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof publicRegisterCustomer>>,
+    TError,
+    { data: BodyType<PublicRegisterCustomerBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof publicRegisterCustomer>>,
+  TError,
+  { data: BodyType<PublicRegisterCustomerBody> },
+  TContext
+> => {
+  const mutationKey = ["publicRegisterCustomer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof publicRegisterCustomer>>,
+    { data: BodyType<PublicRegisterCustomerBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return publicRegisterCustomer(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PublicRegisterCustomerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof publicRegisterCustomer>>
+>;
+export type PublicRegisterCustomerMutationBody =
+  BodyType<PublicRegisterCustomerBody>;
+export type PublicRegisterCustomerMutationError = ErrorType<void>;
+
+/**
+ * @summary Register a customer via external API key (no auth session required)
+ */
+export const usePublicRegisterCustomer = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof publicRegisterCustomer>>,
+    TError,
+    { data: BodyType<PublicRegisterCustomerBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof publicRegisterCustomer>>,
+  TError,
+  { data: BodyType<PublicRegisterCustomerBody> },
+  TContext
+> => {
+  return useMutation(getPublicRegisterCustomerMutationOptions(options));
 };
 
 /**

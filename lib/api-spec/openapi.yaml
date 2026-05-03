@@ -140,6 +140,60 @@ paths:
         "204":
           description: Deleted
 
+  /agencies/{id}/regenerate-api-key:
+    post:
+      operationId: regenerateAgencyApiKey
+      tags: [agencies]
+      summary: Regenerate the agency's external API key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: New API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgencyApiKeyResponse"
+        "404":
+          description: Not found
+
+  /public/customers:
+    post:
+      operationId: publicRegisterCustomer
+      tags: [public]
+      summary: Register a customer via external API key (no auth session required)
+      security: []
+      parameters:
+        - name: X-API-Key
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Agency API key obtained from the MedConsult agency settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublicRegisterCustomerBody"
+      responses:
+        "201":
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "400":
+          description: Validation error
+        "401":
+          description: Invalid or missing API key
+        "409":
+          description: Customer with this email already exists
+
   # --- USERS / AUTH ---
   /users/me:
     get:
@@ -1652,6 +1706,8 @@ components:
           type: string
           enum: [GBP, EUR, TRY]
           default: GBP
+        apiKey:
+          type: ["string", "null"]
         createdAt:
           type: string
         updatedAt:
@@ -2759,3 +2815,46 @@ components:
         - total
         - page
         - limit
+
+    AgencyApiKeyResponse:
+      type: object
+      properties:
+        apiKey:
+          type: string
+      required:
+        - apiKey
+
+    PublicRegisterCustomerBody:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        dialingCode:
+          type: ["string", "null"]
+        nationality:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        postcode:
+          type: ["string", "null"]
+        preferredLanguage:
+          type: ["string", "null"]
+        medicalServicesInterest:
+          type: ["string", "null"]
+        heightCm:
+          type: ["number", "null"]
+        weightKg:
+          type: ["number", "null"]
+        heightUnit:
+          type: ["string", "null"]
+        weightUnit:
+          type: ["string", "null"]
+      required:
+        - firstName
+        - lastName

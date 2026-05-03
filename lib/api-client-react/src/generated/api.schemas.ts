@@ -36,6 +36,8 @@ export interface Agency {
   /** @nullable */
   address?: string | null;
   currency: AgencyCurrency;
+  /** @nullable */
+  apiKey?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -912,6 +914,39 @@ export interface EmailLogsResponse {
   total: number;
   page: number;
   limit: number;
+}
+
+export interface AgencyApiKeyResponse {
+  apiKey: string;
+}
+
+export interface PublicRegisterCustomerBody {
+  firstName: string;
+  lastName: string;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  dialingCode?: string | null;
+  /** @nullable */
+  nationality?: string | null;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  postcode?: string | null;
+  /** @nullable */
+  preferredLanguage?: string | null;
+  /** @nullable */
+  medicalServicesInterest?: string | null;
+  /** @nullable */
+  heightCm?: number | null;
+  /** @nullable */
+  weightKg?: number | null;
+  /** @nullable */
+  heightUnit?: string | null;
+  /** @nullable */
+  weightUnit?: string | null;
 }
 
 export type ListUsersParams = {

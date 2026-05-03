@@ -84,8 +84,12 @@ function emailWrapper(body: string, agency?: AgencyBranding): string {
   const ag = agency ?? DEFAULT_BRANDING;
   const color = ag.color ?? DEFAULT_BRANDING.color;
 
-  const logoHtml = ag.logoUrl
-    ? `<img src="${ag.logoUrl}" alt="${ag.name}" style="height:36px;width:auto;object-fit:contain;margin-bottom:8px;display:block;" />`
+  const absoluteLogoUrl = ag.logoUrl
+    ? (ag.logoUrl.startsWith("/") ? `${getBaseUrl()}${ag.logoUrl}` : ag.logoUrl)
+    : null;
+
+  const logoHtml = absoluteLogoUrl
+    ? `<img src="${absoluteLogoUrl}" alt="${ag.name}" style="height:40px;width:auto;max-width:180px;object-fit:contain;margin-bottom:10px;display:block;" />`
     : `<div style="display:inline-flex;align-items:center;justify-content:center;height:36px;width:36px;border-radius:8px;background:rgba(255,255,255,0.25);color:#fff;font-weight:700;font-size:16px;margin-bottom:8px;">${ag.name[0]?.toUpperCase() ?? "M"}</div>`;
 
   const footerText = ag.email

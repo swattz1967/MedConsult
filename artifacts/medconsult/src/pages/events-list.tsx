@@ -1,4 +1,4 @@
-import { useListEvents } from "@workspace/api-client-react";
+import { useListEvents, useListAgencies } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Link } from "wouter";
 
 export default function EventsList() {
   const { data: allEvents, isLoading } = useListEvents();
+  const { data: agencies } = useListAgencies();
   const events = allEvents?.filter(e => e.status === "published");
 
   return (
@@ -41,35 +42,56 @@ export default function EventsList() {
           </Card>
         ) : (
           <div className="grid md:grid-cols-2 gap-6 mt-8">
-            {events?.map(event => (
-              <Link key={event.id} href={`/events/${event.id}`}>
-                <Card className="h-full hover:border-primary transition-colors cursor-pointer group">
-                  <CardHeader>
-                    <CardTitle className="group-hover:text-primary transition-colors">{event.name}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center text-muted-foreground gap-2">
-                      <CalendarDays className="h-4 w-4" />
-                      <span>{format(new Date(event.startDate), "MMM d")} - {format(new Date(event.endDate), "MMM d, yyyy")}</span>
-                    </div>
-                    <div className="flex items-center text-muted-foreground gap-2">
-                      <MapPin className="h-4 w-4" />
-                      <span>{event.venue}</span>
-                    </div>
-                    {event.description && (
-                      <p className="text-sm line-clamp-2 pt-2">{event.description}</p>
-                    )}
-                    <div className="pt-4 border-t flex items-center justify-between mt-auto">
-                      <Badge variant="secondary" className="flex items-center gap-1">
-                        <Users className="h-3 w-3" />
-                        Surgeons attending
-                      </Badge>
-                      <span className="text-sm font-medium text-primary">View details &rarr;</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+            {events?.map(event => {
+              const agency = agencies?.find(a => a.id === event.agencyId);
+              const brandColor = agency?.primaryColor ?? "#1a6b5c";
+              return (
+                <Link key={event.id} href={`/events/${event.id}`}>
+                  <Card className="h-full hover:border-primary transition-colors cursor-pointer group">
+                    <CardHeader>
+                      <CardTitle className="group-hover:text-primary transition-colors">{event.name}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center text-muted-foreground gap-2">
+                        <CalendarDays className="h-4 w-4" />
+                        <span>{format(new Date(event.startDate), "MMM d")} - {format(new Date(event.endDate), "MMM d, yyyy")}</span>
+                      </div>
+                      <div className="flex items-center text-muted-foreground gap-2">
+                        <MapPin className="h-4 w-4" />
+                        <span>{event.venue}</span>
+                      </div>
+                      {event.description && (
+                        <p className="text-sm line-clamp-2 pt-2">{event.description}</p>
+                      )}
+                      <div className="pt-4 border-t flex items-center justify-between mt-auto">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="flex items-center gap-1">
+                            <Users className="h-3 w-3" />
+                            Surgeons attending
+                          </Badge>
+                          {agency && (
+                            <div className="flex items-center gap-1.5">
+                              {agency.logoUrl ? (
+                                <img src={agency.logoUrl} alt={agency.name} className="h-4 w-4 object-contain rounded" />
+                              ) : (
+                                <div
+                                  className="h-4 w-4 rounded text-[9px] flex items-center justify-center text-white font-bold"
+                                  style={{ backgroundColor: brandColor }}
+                                >
+                                  {agency.name?.[0]?.toUpperCase()}
+                                </div>
+                              )}
+                              <span className="text-xs text-muted-foreground">{agency.name}</span>
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-sm font-medium text-primary">View details &rarr;</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
           </div>
         )}
       </main>

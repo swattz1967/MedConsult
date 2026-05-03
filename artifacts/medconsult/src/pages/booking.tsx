@@ -8,6 +8,7 @@ import {
   useGetSurgeon,
   useListAppointments,
   useCreateAppointment,
+  useListAgencies,
   getListAppointmentsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,7 +20,6 @@ import { Separator } from "@/components/ui/separator";
 import {
   CalendarDays,
   Clock,
-  DollarSign,
   Stethoscope,
   ArrowLeft,
   CheckCircle2,
@@ -30,6 +30,8 @@ import {
 import { format, addDays, isSameDay, parseISO, eachDayOfInterval, addMinutes, startOfDay, setHours, setMinutes, isAfter, isBefore, formatISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrency } from "@/lib/currency";
+import type { Agency } from "@workspace/api-client-react";
 
 const WORK_START_HOUR = 9;
 const WORK_END_HOUR = 17;
@@ -60,6 +62,7 @@ export default function BookingPage() {
   const { data: surgeon, isLoading: isLoadingSurgeon } = useGetSurgeon(surgeonId);
   const { data: eventSurgeons } = useListEventSurgeons(eventId);
   const { data: existingAppointments } = useListAppointments({ eventId, surgeonId });
+  const { data: agencies } = useListAgencies();
 
   const createAppointment = useCreateAppointment();
 
@@ -68,26 +71,26 @@ export default function BookingPage() {
   const [booked, setBooked] = useState(false);
   const [dateOffset, setDateOffset] = useState(0);
 
+  const agency = agencies?.find(a => a.id === event?.agencyId);
+  const agencyCurrency = (agency?.currency ?? "GBP") as "GBP" | "EUR" | "TRY";
+  const brandColor = agency?.primaryColor ?? "#1a6b5c";
+
   const eventSurgeon = eventSurgeons?.find((es) => es.surgeonId === surgeonId);
   const slotMinutes = eventSurgeon?.defaultSlotMinutes ?? 30;
   const fee = eventSurgeon?.defaultFee;
 
-  // Days in the event
   const eventDays = useMemo(() => {
     if (!event) return [];
     return eachDayOfInterval({ start: parseISO(event.startDate), end: parseISO(event.endDate) });
   }, [event]);
 
-  // Show 4 days at a time on mobile-like scroll
   const visibleDays = eventDays.slice(dateOffset, dateOffset + 5);
 
-  // Generate available slots for the selected day
   const slots = useMemo(() => {
     if (!selectedDate) return [];
     return generateSlots(selectedDate, slotMinutes);
   }, [selectedDate, slotMinutes]);
 
-  // Determine which slots are already booked
   const bookedSlotTimes = useMemo(() => {
     return new Set(
       (existingAppointments ?? [])
@@ -98,9 +101,7 @@ export default function BookingPage() {
 
   const isLoading = !isClerkLoaded || isLoadingUser || isLoadingEvent || isLoadingSurgeon;
 
-  // Auth guards
   if (!isClerkLoaded || (!isLoadingUser && isSignedIn === false)) {
-    // Not signed in — redirect to sign-in
     const bookingPath = `/events/${eventId}/book/${surgeonId}`;
     setLocation(`/sign-in?redirect_url=${encodeURIComponent(bookingPath)}`);
     return null;
@@ -142,7 +143,7 @@ export default function BookingPage() {
   if (booked) {
     return (
       <div className="min-h-[100dvh] bg-slate-50 flex flex-col">
-        <Header />
+        <PageHeader agency={agency} brandColor={brandColor} />
         <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-12 flex items-center justify-center">
           <Card className="w-full border-green-200">
             <CardContent className="py-14 flex flex-col items-center text-center gap-5">
@@ -165,8 +166,7 @@ export default function BookingPage() {
                   </div>
                   {fee && (
                     <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <DollarSign className="h-3.5 w-3.5" />
-                      Consultation fee: ${fee}
+                      <span className="text-sm">Consultation fee: {formatCurrency(Number(fee), agencyCurrency)}</span>
                     </div>
                   )}
                 </div>
@@ -219,10 +219,9 @@ export default function BookingPage() {
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col">
-      <Header />
+      <PageHeader agency={agency} brandColor={brandColor} />
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 md:px-6 py-8 space-y-6">
-        {/* Back */}
         <Link
           href={`/events/${eventId}`}
           className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
@@ -234,8 +233,11 @@ export default function BookingPage() {
         <Card>
           <CardContent className="p-5">
             <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-              <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <Stethoscope className="h-7 w-7 text-primary" />
+              <div
+                className="h-14 w-14 rounded-full flex items-center justify-center shrink-0"
+                style={{ backgroundColor: `${brandColor}20` }}
+              >
+                <Stethoscope className="h-7 w-7" style={{ color: brandColor }} />
               </div>
               <div className="flex-1 min-w-0">
                 <h1 className="text-xl font-bold">
@@ -252,13 +254,13 @@ export default function BookingPage() {
                     {event.venue}
                   </div>
                   <div className="flex items-center gap-1.5 font-medium">
-                    <Clock className="h-4 w-4 text-primary" />
+                    <Clock className="h-4 w-4" style={{ color: brandColor }} />
                     {slotMinutes}-min slot
                   </div>
                   {fee && (
                     <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                      <DollarSign className="h-4 w-4 text-primary" />
-                      ${fee}
+                      <span style={{ color: brandColor }}>●</span>
+                      {formatCurrency(Number(fee), agencyCurrency)}
                     </div>
                   )}
                 </div>
@@ -271,7 +273,10 @@ export default function BookingPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <span className="h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">1</span>
+              <span
+                className="h-6 w-6 rounded-full text-white text-xs font-bold flex items-center justify-center"
+                style={{ backgroundColor: brandColor }}
+              >1</span>
               Choose a date
             </CardTitle>
           </CardHeader>
@@ -299,9 +304,10 @@ export default function BookingPage() {
                       className={cn(
                         "flex flex-col items-center justify-center rounded-xl border-2 px-3 py-2.5 min-w-[60px] transition-all",
                         isSelected
-                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                          ? "border-transparent text-white shadow-sm"
                           : "border-border bg-background hover:border-primary/50 hover:bg-muted/40",
                       )}
+                      style={isSelected ? { backgroundColor: brandColor, borderColor: brandColor } : undefined}
                     >
                       <span className="text-xs font-medium uppercase opacity-70">{format(day, "EEE")}</span>
                       <span className="text-xl font-bold leading-tight">{format(day, "d")}</span>
@@ -328,7 +334,10 @@ export default function BookingPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <span className="h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">2</span>
+                <span
+                  className="h-6 w-6 rounded-full text-white text-xs font-bold flex items-center justify-center"
+                  style={{ backgroundColor: brandColor }}
+                >2</span>
                 Choose a time slot
               </CardTitle>
               <CardDescription>
@@ -350,9 +359,10 @@ export default function BookingPage() {
                         isTaken
                           ? "border-border bg-muted text-muted-foreground cursor-not-allowed opacity-50"
                           : isSelected
-                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                          ? "border-transparent text-white shadow-sm"
                           : "border-border bg-background hover:border-primary/50 hover:bg-muted/30",
                       )}
+                      style={isSelected ? { backgroundColor: brandColor, borderColor: brandColor } : undefined}
                     >
                       {format(slot, "h:mm a")}
                       {isTaken && (
@@ -371,7 +381,10 @@ export default function BookingPage() {
           <Card className="border-primary/30 bg-primary/5">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <span className="h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">3</span>
+                <span
+                  className="h-6 w-6 rounded-full text-white text-xs font-bold flex items-center justify-center"
+                  style={{ backgroundColor: brandColor }}
+                >3</span>
                 Confirm your booking
               </CardTitle>
             </CardHeader>
@@ -398,17 +411,18 @@ export default function BookingPage() {
                     <Separator />
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Consultation fee</span>
-                      <span className="font-semibold">${fee}</span>
+                      <span className="font-semibold">{formatCurrency(Number(fee), agencyCurrency)}</span>
                     </div>
                   </>
                 )}
               </div>
 
               <Button
-                className="w-full gap-2"
+                className="w-full gap-2 text-white"
                 size="lg"
                 onClick={handleConfirm}
                 disabled={createAppointment.isPending}
+                style={{ backgroundColor: brandColor, borderColor: brandColor }}
               >
                 {createAppointment.isPending ? "Booking..." : "Confirm Booking"}
                 <CheckCircle2 className="h-4 w-4" />
@@ -421,15 +435,22 @@ export default function BookingPage() {
   );
 }
 
-function Header() {
+function PageHeader({ agency, brandColor }: { agency: Agency | undefined; brandColor: string }) {
   return (
     <header className="border-b bg-white">
       <div className="max-w-3xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary tracking-tight">
-          <div className="h-8 w-8 bg-primary rounded flex items-center justify-center text-primary-foreground font-bold text-sm">
-            M
-          </div>
-          MedConsult
+        <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight" style={{ color: brandColor }}>
+          {agency?.logoUrl ? (
+            <img src={agency.logoUrl} alt={agency.name} className="h-8 w-8 object-contain rounded" />
+          ) : (
+            <div
+              className="h-8 w-8 rounded flex items-center justify-center text-white font-bold text-sm"
+              style={{ backgroundColor: brandColor }}
+            >
+              {agency?.name?.[0]?.toUpperCase() ?? "M"}
+            </div>
+          )}
+          <span className="hidden sm:inline">{agency?.name ?? "MedConsult"}</span>
         </Link>
         <Link href="/portal">
           <Button variant="ghost" size="sm">My Portal</Button>

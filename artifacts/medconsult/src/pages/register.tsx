@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { 
   useCreateCustomer,
   useListNationalities,
   useListLanguages,
-  useListMedicalServices
+  useListMedicalServices,
+  useGetEvent
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,8 +38,18 @@ const registerSchema = z.object({
 
 export default function Register() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const { toast } = useToast();
   const [isSuccess, setIsSuccess] = useState(false);
+
+  const params = new URLSearchParams(search);
+  const eventIdParam = params.get("eventId");
+  const eventId = eventIdParam ? Number(eventIdParam) : undefined;
+
+  const { data: event } = useGetEvent(eventId!);
+  const agencyId = event?.agencyId ?? 1;
+
+  const agency = { primaryColor: "#1a6b5c" };
 
   const createCustomer = useCreateCustomer();
   const { data: nationalities } = useListNationalities();
@@ -55,7 +66,6 @@ export default function Register() {
   });
 
   const onSubmit = (values: z.infer<typeof registerSchema>) => {
-    // Convert units
     const heightCm = values.heightUnit === "ft" ? values.heightValue * 30.48 : values.heightValue;
     const weightKg = values.weightUnit === "lbs" ? values.weightValue * 0.453592 : values.weightValue;
 
@@ -73,7 +83,7 @@ export default function Register() {
       weightKg
     };
 
-    createCustomer.mutate({ data: { ...data, agencyId: 1 } }, {
+    createCustomer.mutate({ data: { ...data, agencyId } }, {
       onSuccess: () => {
         setIsSuccess(true);
       },
@@ -105,8 +115,11 @@ export default function Register() {
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl mb-8">
-        <Link href="/" className="flex justify-center items-center gap-2 font-bold text-2xl text-primary tracking-tight">
-          <div className="h-10 w-10 bg-primary rounded flex items-center justify-center text-primary-foreground font-bold">M</div>
+        <Link href="/" className="flex justify-center items-center gap-2 font-bold text-2xl tracking-tight" style={{ color: agency.primaryColor }}>
+          <div
+            className="h-10 w-10 rounded flex items-center justify-center text-white font-bold"
+            style={{ backgroundColor: agency.primaryColor }}
+          >M</div>
           MedConsult
         </Link>
       </div>
@@ -251,7 +264,8 @@ export default function Register() {
               </div>
 
               <div className="pt-6">
-                <Button type="submit" className="w-full" size="lg" disabled={createCustomer.isPending}>
+                <Button type="submit" className="w-full" size="lg" disabled={createCustomer.isPending}
+                  style={{ backgroundColor: agency.primaryColor, borderColor: agency.primaryColor }}>
                   {createCustomer.isPending ? "Registering..." : "Complete Registration"}
                 </Button>
               </div>

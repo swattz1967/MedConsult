@@ -1,13 +1,14 @@
 import { useParams } from "wouter";
-import { useGetEvent, useListEventSurgeons, useListAppointments, useListSurgeons, useGetCurrentUser } from "@workspace/api-client-react";
+import { useGetEvent, useListEventSurgeons, useListAppointments, useListSurgeons, useGetCurrentUser, useListAgencies } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays, MapPin, Stethoscope, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "wouter";
+import { formatCurrency } from "@/lib/currency";
 
 export default function EventPublic() {
   const { id } = useParams();
@@ -20,6 +21,11 @@ export default function EventPublic() {
   const { data: eventSurgeons, isLoading: isLoadingSurgeons } = useListEventSurgeons(eventId);
   const { data: allSurgeons } = useListSurgeons();
   const { data: appointments } = useListAppointments({ eventId });
+  const { data: agencies } = useListAgencies();
+
+  const agency = agencies?.find(a => a.id === event?.agencyId);
+  const agencyCurrency = (agency?.currency ?? "GBP") as "GBP" | "EUR" | "TRY";
+  const brandColor = agency?.primaryColor ?? "#1a6b5c";
 
   const getBookingHref = (surgeonId: number) => {
     if (!isSignedIn) {
@@ -43,9 +49,18 @@ export default function EventPublic() {
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col">
       <header className="border-b bg-white">
         <div className="max-w-5xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary tracking-tight">
-            <div className="h-8 w-8 bg-primary rounded flex items-center justify-center text-primary-foreground font-bold">M</div>
-            MedConsult
+          <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight" style={{ color: brandColor }}>
+            {agency?.logoUrl ? (
+              <img src={agency.logoUrl} alt={agency.name} className="h-8 w-8 object-contain rounded" />
+            ) : (
+              <div
+                className="h-8 w-8 rounded flex items-center justify-center text-white font-bold text-sm"
+                style={{ backgroundColor: brandColor }}
+              >
+                {agency?.name?.[0]?.toUpperCase() ?? "M"}
+              </div>
+            )}
+            <span className="hidden sm:inline">{agency?.name ?? "MedConsult"}</span>
           </Link>
           <Link href="/events"><Button variant="ghost" size="sm">Browse Events</Button></Link>
         </div>
@@ -58,7 +73,7 @@ export default function EventPublic() {
           </Link>
           <h1 className="text-4xl font-bold tracking-tight mb-4">{event.name}</h1>
           
-          <div className="flex flex-wrap gap-4 text-muted-foreground mb-6">
+          <div className="flex flex-wrap gap-4 text-muted-foreground mb-4">
             <div className="flex items-center gap-2">
               <CalendarDays className="h-5 w-5" />
               <span>{format(new Date(event.startDate), "MMMM d")} - {format(new Date(event.endDate), "MMMM d, yyyy")}</span>
@@ -68,6 +83,22 @@ export default function EventPublic() {
               <span>{event.venue}</span>
             </div>
           </div>
+
+          {agency && (
+            <div className="flex items-center gap-2 mb-4">
+              {agency.logoUrl ? (
+                <img src={agency.logoUrl} alt={agency.name} className="h-5 w-5 object-contain rounded" />
+              ) : (
+                <div
+                  className="h-5 w-5 rounded text-[10px] flex items-center justify-center text-white font-bold"
+                  style={{ backgroundColor: brandColor }}
+                >
+                  {agency.name?.[0]?.toUpperCase()}
+                </div>
+              )}
+              <span className="text-sm text-muted-foreground">Hosted by <span className="font-medium text-foreground">{agency.name}</span></span>
+            </div>
+          )}
           
           {event.description && (
             <div className="prose max-w-none text-muted-foreground">
@@ -101,8 +132,8 @@ export default function EventPublic() {
                     <div className="md:flex">
                       <div className="p-6 md:w-1/3 bg-slate-100/50 border-r flex flex-col justify-center">
                         <div className="flex items-center gap-3 mb-2">
-                          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Stethoscope className="h-6 w-6 text-primary" />
+                          <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ backgroundColor: `${brandColor}20` }}>
+                            <Stethoscope className="h-6 w-6" style={{ color: brandColor }} />
                           </div>
                           <div>
                             <h3 className="font-bold text-lg">{surgeon?.firstName} {surgeon?.lastName}</h3>
@@ -114,7 +145,9 @@ export default function EventPublic() {
                         <div className="flex flex-wrap items-center gap-4 justify-between">
                           <div className="space-y-1">
                             <div className="text-sm font-medium text-muted-foreground">Consultation Fee</div>
-                            <div className="text-xl font-bold">{es.defaultFee ? `$${es.defaultFee}` : "TBC"}</div>
+                            <div className="text-xl font-bold">
+                              {es.defaultFee ? formatCurrency(Number(es.defaultFee), agencyCurrency) : "TBC"}
+                            </div>
                           </div>
                           
                           <div className="space-y-1 text-right md:text-left">
@@ -125,7 +158,9 @@ export default function EventPublic() {
                           </div>
 
                           <Link href={getBookingHref(es.surgeonId)}>
-                            <Button className="w-full md:w-auto">Book Consultation</Button>
+                            <Button className="w-full md:w-auto" style={{ backgroundColor: brandColor, borderColor: brandColor }}>
+                              Book Consultation
+                            </Button>
                           </Link>
                         </div>
                       </div>

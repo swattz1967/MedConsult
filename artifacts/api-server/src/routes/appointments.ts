@@ -16,10 +16,28 @@ import {
   sendStatusChangeNotification,
 } from "../lib/email";
 import { dispatchWebhook } from "../lib/webhook";
+import { isAppOwner, isAdminOrOwner, assertAgencyAccess } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
+async function getAppointmentAgencyId(appointmentId: number): Promise<number | null> {
+  const rows = await db
+    .select({ agencyId: eventsTable.agencyId })
+    .from(appointmentsTable)
+    .innerJoin(eventsTable, eq(appointmentsTable.eventId, eventsTable.id))
+    .where(eq(appointmentsTable.id, appointmentId));
+  return rows[0]?.agencyId ?? null;
+}
+
 router.get("/appointments", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const qp = ListAppointmentsQueryParams.safeParse(req.query);
   const conditions = [];
   if (qp.success) {
@@ -27,17 +45,26 @@ router.get("/appointments", async (req, res, next): Promise<void> => {
     if (qp.data.surgeonId) conditions.push(eq(appointmentsTable.surgeonId, qp.data.surgeonId));
     if (qp.data.customerId) conditions.push(eq(appointmentsTable.customerId, qp.data.customerId));
   }
+
+  if (!isAppOwner(req.currentUser)) {
+    if (!req.currentUser.agencyId) {
+      res.status(403).json({ error: "Forbidden: no agency associated with this account" });
+      return;
+    }
+    conditions.push(eq(eventsTable.agencyId, req.currentUser.agencyId));
+  }
+
   try {
     const rows = await (conditions.length > 0
       ? db.select().from(appointmentsTable)
           .leftJoin(customersTable, eq(appointmentsTable.customerId, customersTable.id))
           .leftJoin(surgeonsTable, eq(appointmentsTable.surgeonId, surgeonsTable.id))
-          .leftJoin(eventsTable, eq(appointmentsTable.eventId, eventsTable.id))
+          .innerJoin(eventsTable, eq(appointmentsTable.eventId, eventsTable.id))
           .where(and(...conditions))
       : db.select().from(appointmentsTable)
           .leftJoin(customersTable, eq(appointmentsTable.customerId, customersTable.id))
           .leftJoin(surgeonsTable, eq(appointmentsTable.surgeonId, surgeonsTable.id))
-          .leftJoin(eventsTable, eq(appointmentsTable.eventId, eventsTable.id))
+          .innerJoin(eventsTable, eq(appointmentsTable.eventId, eventsTable.id))
     );
     const appointments = rows.map(r => ({
       ...r.appointments,
@@ -52,12 +79,41 @@ router.get("/appointments", async (req, res, next): Promise<void> => {
 });
 
 router.post("/appointments", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const parsed = CreateAppointmentBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
   try {
+    const [event] = await db.select().from(eventsTable).where(eq(eventsTable.id, parsed.data.eventId));
+    if (!event) {
+      res.status(404).json({ error: "Event not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, event.agencyId, res)) return;
+
+    const [customerCheck] = await db.select({ agencyId: customersTable.agencyId })
+      .from(customersTable).where(eq(customersTable.id, parsed.data.customerId));
+    if (!customerCheck || customerCheck.agencyId !== event.agencyId) {
+      res.status(400).json({ error: "Customer does not belong to this agency" });
+      return;
+    }
+
+    const [surgeonCheck] = await db.select({ agencyId: surgeonsTable.agencyId })
+      .from(surgeonsTable).where(eq(surgeonsTable.id, parsed.data.surgeonId));
+    if (!surgeonCheck || surgeonCheck.agencyId !== event.agencyId) {
+      res.status(400).json({ error: "Surgeon does not belong to this agency" });
+      return;
+    }
+
     req.log.info({ customerId: parsed.data.customerId, surgeonId: parsed.data.surgeonId, eventId: parsed.data.eventId }, "Creating appointment");
     const [appt] = await db
       .insert(appointmentsTable)
@@ -66,16 +122,14 @@ router.post("/appointments", async (req, res, next): Promise<void> => {
 
     const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, appt.customerId));
     const [surgeon]  = await db.select().from(surgeonsTable).where(eq(surgeonsTable.id, appt.surgeonId));
-    const [event]    = await db.select().from(eventsTable).where(eq(eventsTable.id, appt.eventId));
 
     req.log.info({ appointmentId: appt.id }, "Appointment created");
     res.status(201).json({ ...appt, customer, surgeon, event });
 
-    // Fire-and-forget emails + webhook — after response sent
     (async () => {
-      const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, event?.agencyId ?? -1));
+      const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, event.agencyId));
 
-      if (customer?.email && surgeon?.email && event) {
+      if (customer?.email && surgeon?.email) {
         const agencyBranding = agency
           ? { id: agency.id, name: agency.name, color: agency.primaryColor ?? "#145c4b", logoUrl: agency.logoUrl, email: agency.email }
           : undefined;
@@ -123,6 +177,14 @@ router.post("/appointments", async (req, res, next): Promise<void> => {
 });
 
 router.get("/appointments/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = GetAppointmentParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -132,7 +194,7 @@ router.get("/appointments/:id", async (req, res, next): Promise<void> => {
     const rows = await db.select().from(appointmentsTable)
       .leftJoin(customersTable, eq(appointmentsTable.customerId, customersTable.id))
       .leftJoin(surgeonsTable, eq(appointmentsTable.surgeonId, surgeonsTable.id))
-      .leftJoin(eventsTable, eq(appointmentsTable.eventId, eventsTable.id))
+      .innerJoin(eventsTable, eq(appointmentsTable.eventId, eventsTable.id))
       .where(eq(appointmentsTable.id, params.data.id));
 
     if (rows.length === 0) {
@@ -140,6 +202,7 @@ router.get("/appointments/:id", async (req, res, next): Promise<void> => {
       return;
     }
     const r = rows[0];
+    if (!assertAgencyAccess(req.currentUser, r.events.agencyId, res)) return;
     res.json({ ...r.appointments, customer: r.customers, surgeon: r.surgeons, event: r.events });
   } catch (err) {
     next(err);
@@ -147,6 +210,14 @@ router.get("/appointments/:id", async (req, res, next): Promise<void> => {
 });
 
 router.patch("/appointments/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = UpdateAppointmentParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -158,6 +229,13 @@ router.patch("/appointments/:id", async (req, res, next): Promise<void> => {
     return;
   }
   try {
+    const apptAgencyId = await getAppointmentAgencyId(params.data.id);
+    if (apptAgencyId === null) {
+      res.status(404).json({ error: "Appointment not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, apptAgencyId, res)) return;
+
     req.log.info({ appointmentId: params.data.id }, "Updating appointment");
     const [oldAppt] = await db.select().from(appointmentsTable).where(eq(appointmentsTable.id, params.data.id));
 
@@ -250,12 +328,27 @@ router.patch("/appointments/:id", async (req, res, next): Promise<void> => {
 });
 
 router.delete("/appointments/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = DeleteAppointmentParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
   try {
+    const apptAgencyId = await getAppointmentAgencyId(params.data.id);
+    if (apptAgencyId === null) {
+      res.status(404).json({ error: "Appointment not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, apptAgencyId, res)) return;
+
     req.log.info({ appointmentId: params.data.id }, "Deleting appointment");
     await db.delete(appointmentsTable).where(eq(appointmentsTable.id, params.data.id));
     res.sendStatus(204);

@@ -9,6 +9,7 @@ import {
   sendDeclarationReminder,
   sendRegistrationWelcome,
 } from "../lib/email";
+import { isAdminOrOwner, assertAgencyAccess } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -32,7 +33,15 @@ function isValidEmail(email: unknown): email is string {
 }
 
 router.post("/email/preview", async (req, res): Promise<void> => {
-  const { templateType, recipientEmail, agencyId } = req.body as Record<string, unknown>;
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
+  const { templateType, recipientEmail, agencyId: bodyAgencyId } = req.body as Record<string, unknown>;
 
   if (!VALID_TEMPLATES.includes(templateType as TemplateType)) {
     res.status(400).json({ error: "Invalid templateType" });
@@ -42,12 +51,13 @@ router.post("/email/preview", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid recipientEmail" });
     return;
   }
-  if (typeof agencyId !== "number" || !Number.isInteger(agencyId) || agencyId < 1) {
+  if (typeof bodyAgencyId !== "number" || !Number.isInteger(bodyAgencyId) || bodyAgencyId < 1) {
     res.status(400).json({ error: "Invalid agencyId" });
     return;
   }
+  if (!assertAgencyAccess(req.currentUser, bodyAgencyId, res)) return;
 
-  const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, agencyId));
+  const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, bodyAgencyId));
   if (!agency) {
     res.status(404).json({ error: "Agency not found" });
     return;

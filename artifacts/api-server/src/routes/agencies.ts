@@ -9,10 +9,19 @@ import {
   DeleteAgencyParams,
   GetAgencyParams,
 } from "@workspace/api-zod";
+import { isAppOwner, isAdminOrOwner, assertAgencyAccess } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
-router.get("/agencies", async (_req, res, next): Promise<void> => {
+router.get("/agencies", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAppOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const agencies = await db.select().from(agenciesTable).orderBy(agenciesTable.name);
     res.json(agencies);
@@ -22,6 +31,14 @@ router.get("/agencies", async (_req, res, next): Promise<void> => {
 });
 
 router.post("/agencies", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAppOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const parsed = CreateAgencyBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -38,11 +55,20 @@ router.post("/agencies", async (req, res, next): Promise<void> => {
 });
 
 router.get("/agencies/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = GetAgencyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
+  if (!assertAgencyAccess(req.currentUser, params.data.id, res)) return;
   try {
     const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, params.data.id));
     if (!agency) {
@@ -56,11 +82,20 @@ router.get("/agencies/:id", async (req, res, next): Promise<void> => {
 });
 
 router.patch("/agencies/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = UpdateAgencyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
+  if (!assertAgencyAccess(req.currentUser, params.data.id, res)) return;
   const parsed = UpdateAgencyBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -88,11 +123,20 @@ router.patch("/agencies/:id", async (req, res, next): Promise<void> => {
 });
 
 router.post("/agencies/:id/regenerate-webhook-secret", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = GetAgencyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
+  if (!assertAgencyAccess(req.currentUser, params.data.id, res)) return;
   try {
     req.log.info({ agencyId: params.data.id }, "Regenerating webhook secret");
     const newSecret = randomBytes(32).toString("hex");
@@ -112,11 +156,20 @@ router.post("/agencies/:id/regenerate-webhook-secret", async (req, res, next): P
 });
 
 router.post("/agencies/:id/regenerate-api-key", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = GetAgencyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
+  if (!assertAgencyAccess(req.currentUser, params.data.id, res)) return;
   try {
     req.log.info({ agencyId: params.data.id }, "Regenerating API key");
     const newKey = randomBytes(32).toString("hex");
@@ -136,6 +189,14 @@ router.post("/agencies/:id/regenerate-api-key", async (req, res, next): Promise<
 });
 
 router.delete("/agencies/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAppOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: only app owners can delete agencies" });
+    return;
+  }
   const params = DeleteAgencyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });

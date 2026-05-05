@@ -1,12 +1,28 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, sql, gte, lte } from "drizzle-orm";
 import { db, emailLogsTable } from "@workspace/db";
+import { isAppOwner, isAdminOrOwner, assertAgencyAccess } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
 router.get("/email-stats", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
-    const rows = await db
+    const agencyId = isAppOwner(req.currentUser) ? null : req.currentUser.agencyId;
+
+    if (!isAppOwner(req.currentUser) && !agencyId) {
+      res.status(403).json({ error: "Forbidden: no agency associated with this account" });
+      return;
+    }
+
+    const query = db
       .select({
         agencyId:   emailLogsTable.agencyId,
         total:      sql<number>`count(*)::int`,
@@ -16,6 +32,10 @@ router.get("/email-stats", async (req, res, next): Promise<void> => {
       })
       .from(emailLogsTable)
       .groupBy(emailLogsTable.agencyId);
+
+    const rows = agencyId
+      ? await query.where(eq(emailLogsTable.agencyId, agencyId))
+      : await query;
     res.json(rows);
   } catch (err) {
     next(err);
@@ -23,12 +43,24 @@ router.get("/email-stats", async (req, res, next): Promise<void> => {
 });
 
 router.get("/email-logs", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
-    const agencyId = Number(req.query.agencyId);
+    const agencyId = isAppOwner(req.currentUser)
+      ? Number(req.query.agencyId)
+      : req.currentUser.agencyId;
+
     if (!agencyId || isNaN(agencyId)) {
       res.status(400).json({ error: "agencyId is required" });
       return;
     }
+    if (!assertAgencyAccess(req.currentUser, agencyId, res)) return;
 
     const page  = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(10_000, Math.max(1, Number(req.query.limit) || 50));

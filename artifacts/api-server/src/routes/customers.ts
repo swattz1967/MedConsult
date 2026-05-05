@@ -7,15 +7,22 @@ import {
   UpdateCustomerParams,
   UpdateCustomerBody,
   DeleteCustomerParams,
-  ListCustomersQueryParams,
 } from "@workspace/api-zod";
 import { sendDeclarationReminder, sendRegistrationWelcome } from "../lib/email";
+import { isAppOwner, isAdminOrOwner, assertAgencyAccess } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
 router.get("/customers", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
-    const qp = ListCustomersQueryParams.safeParse(req.query);
     const customerCols = getTableColumns(customersTable);
     const query = db
       .select({
@@ -27,8 +34,18 @@ router.get("/customers", async (req, res, next): Promise<void> => {
       .leftJoin(appointmentsTable, eq(appointmentsTable.customerId, customersTable.id))
       .groupBy(customersTable.id)
       .orderBy(customersTable.lastName);
-    const customers = qp.success && qp.data.agencyId
-      ? await query.where(eq(customersTable.agencyId, qp.data.agencyId))
+
+    const agencyId = isAppOwner(req.currentUser)
+      ? (req.query.agencyId ? Number(req.query.agencyId) : null)
+      : req.currentUser.agencyId;
+
+    if (!isAppOwner(req.currentUser) && !agencyId) {
+      res.status(403).json({ error: "Forbidden: no agency associated with this account" });
+      return;
+    }
+
+    const customers = agencyId
+      ? await query.where(eq(customersTable.agencyId, agencyId))
       : await query;
     res.json(customers);
   } catch (err) {
@@ -37,25 +54,33 @@ router.get("/customers", async (req, res, next): Promise<void> => {
 });
 
 router.post("/customers", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const parsed = CreateCustomerBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const agencyId = isAppOwner(req.currentUser) ? parsed.data.agencyId : req.currentUser.agencyId;
+  if (!agencyId) {
+    res.status(400).json({ error: "No agency associated with this account" });
+    return;
+  }
   try {
-    req.log.info({ agencyId: parsed.data.agencyId }, "Creating customer");
-    const [customer] = await db.insert(customersTable).values(parsed.data).returning();
+    req.log.info({ agencyId }, "Creating customer");
+    const [customer] = await db.insert(customersTable).values({ ...parsed.data, agencyId }).returning();
     req.log.info({ customerId: customer.id, agencyId: customer.agencyId }, "Customer created");
     res.status(201).json(customer);
 
-    // Fire-and-forget: send branded welcome email after response is sent
     if (customer.email) {
       (async () => {
-        const [agency] = await db
-          .select()
-          .from(agenciesTable)
-          .where(eq(agenciesTable.id, parsed.data.agencyId));
-
+        const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, agencyId));
         await sendRegistrationWelcome({
           customerId: customer.id,
           customerName: `${customer.firstName} ${customer.lastName}`,
@@ -78,6 +103,14 @@ router.post("/customers", async (req, res, next): Promise<void> => {
 });
 
 router.get("/customers/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = GetCustomerParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -89,6 +122,7 @@ router.get("/customers/:id", async (req, res, next): Promise<void> => {
       res.status(404).json({ error: "Customer not found" });
       return;
     }
+    if (!assertAgencyAccess(req.currentUser, customer.agencyId, res)) return;
     res.json(customer);
   } catch (err) {
     next(err);
@@ -96,6 +130,14 @@ router.get("/customers/:id", async (req, res, next): Promise<void> => {
 });
 
 router.patch("/customers/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = UpdateCustomerParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -106,11 +148,18 @@ router.patch("/customers/:id", async (req, res, next): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const cleanData: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(parsed.data)) {
-    if (value !== null && value !== undefined) cleanData[key] = value;
-  }
   try {
+    const [existing] = await db.select().from(customersTable).where(eq(customersTable.id, params.data.id));
+    if (!existing) {
+      res.status(404).json({ error: "Customer not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, existing.agencyId, res)) return;
+
+    const cleanData: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(parsed.data)) {
+      if (value !== null && value !== undefined) cleanData[key] = value;
+    }
     req.log.info({ customerId: params.data.id }, "Updating customer");
     const [customer] = await db
       .update(customersTable)
@@ -128,12 +177,27 @@ router.patch("/customers/:id", async (req, res, next): Promise<void> => {
 });
 
 router.delete("/customers/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = DeleteCustomerParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
   try {
+    const [existing] = await db.select().from(customersTable).where(eq(customersTable.id, params.data.id));
+    if (!existing) {
+      res.status(404).json({ error: "Customer not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, existing.agencyId, res)) return;
+
     req.log.info({ customerId: params.data.id }, "Deleting customer");
     await db.delete(customersTable).where(eq(customersTable.id, params.data.id));
     res.sendStatus(204);
@@ -143,6 +207,14 @@ router.delete("/customers/:id", async (req, res, next): Promise<void> => {
 });
 
 router.post("/customers/:id/send-declaration-reminder", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = GetCustomerParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -155,6 +227,7 @@ router.post("/customers/:id/send-declaration-reminder", async (req, res, next): 
       res.status(404).json({ error: "Customer not found" });
       return;
     }
+    if (!assertAgencyAccess(req.currentUser, customer.agencyId, res)) return;
     if (!customer.email) {
       res.status(400).json({ error: "Customer has no email address on file" });
       return;

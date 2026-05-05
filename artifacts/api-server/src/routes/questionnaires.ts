@@ -20,19 +20,37 @@ import {
   UpdateQuestionnaireResponseBody,
   ListQuestionnaireResponsesQueryParams,
 } from "@workspace/api-zod";
+import { isAppOwner, isAdminOrOwner, assertAgencyAccess } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
 // --- QUESTIONNAIRES ---
 
 router.get("/questionnaires", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const qp = ListQuestionnairesQueryParams.safeParse(req.query);
     const conditions = [];
-    if (qp.success) {
-      if (qp.data.agencyId) conditions.push(eq(questionnairesTable.agencyId, qp.data.agencyId));
-      if (qp.data.type) conditions.push(eq(questionnairesTable.type, qp.data.type));
+
+    const agencyId = isAppOwner(req.currentUser)
+      ? (qp.success && qp.data.agencyId ? qp.data.agencyId : null)
+      : req.currentUser.agencyId;
+
+    if (!isAppOwner(req.currentUser) && !agencyId) {
+      res.status(403).json({ error: "Forbidden: no agency associated with this account" });
+      return;
     }
+
+    if (agencyId) conditions.push(eq(questionnairesTable.agencyId, agencyId));
+    if (qp.success && qp.data.type) conditions.push(eq(questionnairesTable.type, qp.data.type));
+
     const questionnaires = conditions.length > 0
       ? await db.select().from(questionnairesTable).where(and(...conditions))
       : await db.select().from(questionnairesTable);
@@ -43,16 +61,39 @@ router.get("/questionnaires", async (req, res, next): Promise<void> => {
 });
 
 router.post("/questionnaires", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const parsed = CreateQuestionnaireBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
       return;
     }
+    const agencyId = isAppOwner(req.currentUser) ? parsed.data.agencyId : req.currentUser.agencyId;
+    if (!agencyId) {
+      res.status(400).json({ error: "No agency associated with this account" });
+      return;
+    }
     const { copyFromId, ...data } = parsed.data;
-    req.log.info({ agencyId: data.agencyId, copyFromId: copyFromId ?? null }, "Creating questionnaire");
+
+    if (copyFromId) {
+      const [sourceQuestionnaire] = await db.select().from(questionnairesTable).where(eq(questionnairesTable.id, copyFromId));
+      if (!sourceQuestionnaire) {
+        res.status(404).json({ error: "Source questionnaire not found" });
+        return;
+      }
+      if (!assertAgencyAccess(req.currentUser, sourceQuestionnaire.agencyId, res)) return;
+    }
+
+    req.log.info({ agencyId, copyFromId: copyFromId ?? null }, "Creating questionnaire");
     const [questionnaire] = await db.insert(questionnairesTable)
-      .values({ ...data, isDefault: data.isDefault ?? false })
+      .values({ ...data, agencyId, isDefault: data.isDefault ?? false })
       .returning();
 
     if (copyFromId) {
@@ -79,6 +120,14 @@ router.post("/questionnaires", async (req, res, next): Promise<void> => {
 });
 
 router.get("/questionnaires/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = GetQuestionnaireParams.safeParse(req.params);
     if (!params.success) {
@@ -90,6 +139,7 @@ router.get("/questionnaires/:id", async (req, res, next): Promise<void> => {
       res.status(404).json({ error: "Questionnaire not found" });
       return;
     }
+    if (!assertAgencyAccess(req.currentUser, questionnaire.agencyId, res)) return;
     const questions = await db.select().from(questionsTable)
       .where(eq(questionsTable.questionnaireId, params.data.id))
       .orderBy(questionsTable.sortOrder);
@@ -100,6 +150,14 @@ router.get("/questionnaires/:id", async (req, res, next): Promise<void> => {
 });
 
 router.patch("/questionnaires/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = UpdateQuestionnaireParams.safeParse(req.params);
     if (!params.success) {
@@ -111,6 +169,13 @@ router.patch("/questionnaires/:id", async (req, res, next): Promise<void> => {
       res.status(400).json({ error: parsed.error.message });
       return;
     }
+    const [existing] = await db.select().from(questionnairesTable).where(eq(questionnairesTable.id, params.data.id));
+    if (!existing) {
+      res.status(404).json({ error: "Questionnaire not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, existing.agencyId, res)) return;
+
     req.log.info({ questionnaireId: params.data.id }, "Updating questionnaire");
     const cleanData: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(parsed.data)) {
@@ -128,12 +193,27 @@ router.patch("/questionnaires/:id", async (req, res, next): Promise<void> => {
 });
 
 router.delete("/questionnaires/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = DeleteQuestionnaireParams.safeParse(req.params);
     if (!params.success) {
       res.status(400).json({ error: params.error.message });
       return;
     }
+    const [existing] = await db.select().from(questionnairesTable).where(eq(questionnairesTable.id, params.data.id));
+    if (!existing) {
+      res.status(404).json({ error: "Questionnaire not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, existing.agencyId, res)) return;
+
     req.log.info({ questionnaireId: params.data.id }, "Deleting questionnaire");
     await db.delete(questionnairesTable).where(eq(questionnairesTable.id, params.data.id));
     res.sendStatus(204);
@@ -145,12 +225,26 @@ router.delete("/questionnaires/:id", async (req, res, next): Promise<void> => {
 // --- QUESTIONS ---
 
 router.get("/questionnaires/:questionnaireId/questions", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = ListQuestionsParams.safeParse(req.params);
     if (!params.success) {
       res.status(400).json({ error: params.error.message });
       return;
     }
+    const [questionnaire] = await db.select().from(questionnairesTable).where(eq(questionnairesTable.id, params.data.questionnaireId));
+    if (!questionnaire) {
+      res.status(404).json({ error: "Questionnaire not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, questionnaire.agencyId, res)) return;
     const questions = await db.select().from(questionsTable)
       .where(eq(questionsTable.questionnaireId, params.data.questionnaireId))
       .orderBy(questionsTable.sortOrder);
@@ -161,6 +255,14 @@ router.get("/questionnaires/:questionnaireId/questions", async (req, res, next):
 });
 
 router.post("/questionnaires/:questionnaireId/questions", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = CreateQuestionParams.safeParse(req.params);
     if (!params.success) {
@@ -172,6 +274,13 @@ router.post("/questionnaires/:questionnaireId/questions", async (req, res, next)
       res.status(400).json({ error: parsed.error.message });
       return;
     }
+    const [questionnaire] = await db.select().from(questionnairesTable).where(eq(questionnairesTable.id, params.data.questionnaireId));
+    if (!questionnaire) {
+      res.status(404).json({ error: "Questionnaire not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, questionnaire.agencyId, res)) return;
+
     req.log.info({ questionnaireId: params.data.questionnaireId }, "Adding question to questionnaire");
     const [question] = await db.insert(questionsTable).values({
       ...parsed.data,
@@ -187,6 +296,14 @@ router.post("/questionnaires/:questionnaireId/questions", async (req, res, next)
 });
 
 router.patch("/questionnaires/:questionnaireId/questions/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = UpdateQuestionParams.safeParse(req.params);
     if (!params.success) {
@@ -198,6 +315,13 @@ router.patch("/questionnaires/:questionnaireId/questions/:id", async (req, res, 
       res.status(400).json({ error: parsed.error.message });
       return;
     }
+    const [questionnaire] = await db.select().from(questionnairesTable).where(eq(questionnairesTable.id, params.data.questionnaireId));
+    if (!questionnaire) {
+      res.status(404).json({ error: "Questionnaire not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, questionnaire.agencyId, res)) return;
+
     req.log.info({ questionId: params.data.id, questionnaireId: params.data.questionnaireId }, "Updating question");
     const cleanData: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(parsed.data)) {
@@ -217,12 +341,27 @@ router.patch("/questionnaires/:questionnaireId/questions/:id", async (req, res, 
 });
 
 router.delete("/questionnaires/:questionnaireId/questions/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = DeleteQuestionParams.safeParse(req.params);
     if (!params.success) {
       res.status(400).json({ error: params.error.message });
       return;
     }
+    const [questionnaire] = await db.select().from(questionnairesTable).where(eq(questionnairesTable.id, params.data.questionnaireId));
+    if (!questionnaire) {
+      res.status(404).json({ error: "Questionnaire not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, questionnaire.agencyId, res)) return;
+
     req.log.info({ questionId: params.data.id, questionnaireId: params.data.questionnaireId }, "Deleting question");
     await db.delete(questionsTable)
       .where(and(eq(questionsTable.id, params.data.id), eq(questionsTable.questionnaireId, params.data.questionnaireId)));
@@ -234,31 +373,75 @@ router.delete("/questionnaires/:questionnaireId/questions/:id", async (req, res,
 
 // --- QUESTIONNAIRE RESPONSES ---
 
+async function getResponseAgencyId(responseId: number): Promise<number | null> {
+  const rows = await db
+    .select({ agencyId: questionnairesTable.agencyId })
+    .from(questionnaireResponsesTable)
+    .innerJoin(questionnairesTable, eq(questionnaireResponsesTable.questionnaireId, questionnairesTable.id))
+    .where(eq(questionnaireResponsesTable.id, responseId));
+  return rows[0]?.agencyId ?? null;
+}
+
 router.get("/questionnaire-responses", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
+
+  const agencyId = isAppOwner(req.currentUser)
+    ? (req.query.agencyId ? Number(req.query.agencyId) : null)
+    : req.currentUser.agencyId;
+
+  if (!isAppOwner(req.currentUser) && !agencyId) {
+    res.status(403).json({ error: "Forbidden: no agency associated with this account" });
+    return;
+  }
+
   try {
     const qp = ListQuestionnaireResponsesQueryParams.safeParse(req.query);
-    const conditions = [];
+    const responseConditions = [];
     if (qp.success) {
-      if (qp.data.questionnaireId) conditions.push(eq(questionnaireResponsesTable.questionnaireId, qp.data.questionnaireId));
-      if (qp.data.customerId) conditions.push(eq(questionnaireResponsesTable.customerId, qp.data.customerId));
-      if (qp.data.appointmentId) conditions.push(eq(questionnaireResponsesTable.appointmentId, qp.data.appointmentId));
+      if (qp.data.questionnaireId) responseConditions.push(eq(questionnaireResponsesTable.questionnaireId, qp.data.questionnaireId));
+      if (qp.data.customerId) responseConditions.push(eq(questionnaireResponsesTable.customerId, qp.data.customerId));
+      if (qp.data.appointmentId) responseConditions.push(eq(questionnaireResponsesTable.appointmentId, qp.data.appointmentId));
     }
-    const responses = conditions.length > 0
-      ? await db.select().from(questionnaireResponsesTable).where(and(...conditions))
-      : await db.select().from(questionnaireResponsesTable);
-    res.json(responses);
+
+    if (agencyId) {
+      responseConditions.push(eq(questionnairesTable.agencyId, agencyId));
+    }
+
+    const rows = await db
+      .select({ response: questionnaireResponsesTable })
+      .from(questionnaireResponsesTable)
+      .innerJoin(questionnairesTable, eq(questionnaireResponsesTable.questionnaireId, questionnairesTable.id))
+      .where(responseConditions.length > 0 ? and(...responseConditions) : undefined);
+    res.json(rows.map(r => r.response));
   } catch (err) {
     next(err);
   }
 });
 
 router.post("/questionnaire-responses", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
   try {
     const parsed = SubmitQuestionnaireResponseBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
       return;
     }
+    const [questionnaire] = await db.select().from(questionnairesTable).where(eq(questionnairesTable.id, parsed.data.questionnaireId));
+    if (!questionnaire) {
+      res.status(404).json({ error: "Questionnaire not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, questionnaire.agencyId, res)) return;
     req.log.info(
       { questionnaireId: parsed.data.questionnaireId, customerId: parsed.data.customerId, appointmentId: parsed.data.appointmentId ?? null },
       "Submitting questionnaire response",
@@ -272,6 +455,14 @@ router.post("/questionnaire-responses", async (req, res, next): Promise<void> =>
 });
 
 router.get("/questionnaire-responses/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = GetQuestionnaireResponseParams.safeParse(req.params);
     if (!params.success) {
@@ -283,6 +474,12 @@ router.get("/questionnaire-responses/:id", async (req, res, next): Promise<void>
       res.status(404).json({ error: "Response not found" });
       return;
     }
+    const responseAgencyId = await getResponseAgencyId(params.data.id);
+    if (responseAgencyId === null) {
+      res.status(404).json({ error: "Response not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, responseAgencyId, res)) return;
     res.json(response);
   } catch (err) {
     next(err);
@@ -290,6 +487,14 @@ router.get("/questionnaire-responses/:id", async (req, res, next): Promise<void>
 });
 
 router.patch("/questionnaire-responses/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = UpdateQuestionnaireResponseParams.safeParse(req.params);
     if (!params.success) {
@@ -301,6 +506,12 @@ router.patch("/questionnaire-responses/:id", async (req, res, next): Promise<voi
       res.status(400).json({ error: parsed.error.message });
       return;
     }
+    const responseAgencyId = await getResponseAgencyId(params.data.id);
+    if (responseAgencyId === null) {
+      res.status(404).json({ error: "Response not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, responseAgencyId, res)) return;
     req.log.info({ responseId: params.data.id }, "Updating questionnaire response");
     const cleanData: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(parsed.data)) {

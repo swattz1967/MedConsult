@@ -13,12 +13,31 @@ import {
   AddConsultationMediaBody,
   DeleteConsultationMediaParams,
 } from "@workspace/api-zod";
+import { isAppOwner, isAdminOrOwner, assertAgencyAccess } from "../middlewares/auth";
 
 const router: IRouter = Router();
+
+async function getConsultationAgencyId(recordId: number): Promise<number | null> {
+  const rows = await db
+    .select({ agencyId: eventsTable.agencyId })
+    .from(consultationRecordsTable)
+    .innerJoin(appointmentsTable, eq(consultationRecordsTable.appointmentId, appointmentsTable.id))
+    .innerJoin(eventsTable, eq(appointmentsTable.eventId, eventsTable.id))
+    .where(eq(consultationRecordsTable.id, recordId));
+  return rows[0]?.agencyId ?? null;
+}
 
 // --- CONSULTATION RECORDS ---
 
 router.get("/consultation-records", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const qp = ListConsultationRecordsQueryParams.safeParse(req.query);
     const conditions = [];
@@ -27,6 +46,24 @@ router.get("/consultation-records", async (req, res, next): Promise<void> => {
       if (qp.data.customerId)    conditions.push(eq(consultationRecordsTable.customerId, qp.data.customerId));
       if (qp.data.surgeonId)     conditions.push(eq(consultationRecordsTable.surgeonId, qp.data.surgeonId));
     }
+
+    if (!isAppOwner(req.currentUser)) {
+      if (!req.currentUser.agencyId) {
+        res.status(403).json({ error: "Forbidden: no agency associated with this account" });
+        return;
+      }
+      const agencyId = req.currentUser.agencyId;
+      const records = await db
+        .select({ record: consultationRecordsTable })
+        .from(consultationRecordsTable)
+        .innerJoin(appointmentsTable, eq(consultationRecordsTable.appointmentId, appointmentsTable.id))
+        .innerJoin(eventsTable, eq(appointmentsTable.eventId, eventsTable.id))
+        .where(and(eq(eventsTable.agencyId, agencyId), ...(conditions.length > 0 ? conditions : [])))
+        .orderBy(consultationRecordsTable.createdAt);
+      res.json(records.map(r => r.record));
+      return;
+    }
+
     const records = conditions.length > 0
       ? await db.select().from(consultationRecordsTable).where(and(...conditions))
       : await db.select().from(consultationRecordsTable).orderBy(consultationRecordsTable.createdAt);
@@ -37,14 +74,46 @@ router.get("/consultation-records", async (req, res, next): Promise<void> => {
 });
 
 router.post("/consultation-records", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const parsed = CreateConsultationRecordBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
   try {
-    req.log.info({ appointmentId: parsed.data.appointmentId, surgeonId: parsed.data.surgeonId ?? null }, "Creating consultation record");
-    const [record] = await db.insert(consultationRecordsTable).values({ ...parsed.data, status: "in_progress" }).returning();
+    const [appointment] = await db.select().from(appointmentsTable).where(eq(appointmentsTable.id, parsed.data.appointmentId));
+    if (!appointment) {
+      res.status(404).json({ error: "Appointment not found" });
+      return;
+    }
+    const [event] = await db.select().from(eventsTable).where(eq(eventsTable.id, appointment.eventId));
+    if (!event || !assertAgencyAccess(req.currentUser, event.agencyId, res)) return;
+
+    if (parsed.data.customerId !== undefined && parsed.data.customerId !== appointment.customerId) {
+      res.status(400).json({ error: "customerId does not match the appointment's customer" });
+      return;
+    }
+    if (parsed.data.surgeonId !== undefined && parsed.data.surgeonId !== appointment.surgeonId) {
+      res.status(400).json({ error: "surgeonId does not match the appointment's surgeon" });
+      return;
+    }
+
+    const safeData = {
+      ...parsed.data,
+      customerId: appointment.customerId,
+      surgeonId: appointment.surgeonId,
+      status: "in_progress" as const,
+    };
+
+    req.log.info({ appointmentId: parsed.data.appointmentId, surgeonId: appointment.surgeonId ?? null }, "Creating consultation record");
+    const [record] = await db.insert(consultationRecordsTable).values(safeData).returning();
     req.log.info({ consultationId: record.id }, "Consultation record created");
     res.status(201).json(record);
   } catch (err) {
@@ -53,6 +122,14 @@ router.post("/consultation-records", async (req, res, next): Promise<void> => {
 });
 
 router.get("/consultation-records/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const raw = req.params.id;
   if (raw === "pdf") { res.status(400).json({ error: "Invalid ID" }); return; }
   const params = GetConsultationRecordParams.safeParse(req.params);
@@ -66,6 +143,8 @@ router.get("/consultation-records/:id", async (req, res, next): Promise<void> =>
       res.status(404).json({ error: "Consultation record not found" });
       return;
     }
+    const agencyId = await getConsultationAgencyId(record.id);
+    if (agencyId !== null && !assertAgencyAccess(req.currentUser, agencyId, res)) return;
     res.json(record);
   } catch (err) {
     next(err);
@@ -73,6 +152,14 @@ router.get("/consultation-records/:id", async (req, res, next): Promise<void> =>
 });
 
 router.patch("/consultation-records/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = UpdateConsultationRecordParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -83,11 +170,18 @@ router.patch("/consultation-records/:id", async (req, res, next): Promise<void> 
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const cleanData: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(parsed.data)) {
-    if (value !== null && value !== undefined) cleanData[key] = value;
-  }
   try {
+    const agencyId = await getConsultationAgencyId(params.data.id);
+    if (agencyId === null) {
+      res.status(404).json({ error: "Consultation record not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, agencyId, res)) return;
+
+    const cleanData: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(parsed.data)) {
+      if (value !== null && value !== undefined) cleanData[key] = value;
+    }
     req.log.info({ consultationId: params.data.id }, "Updating consultation record");
     const [record] = await db
       .update(consultationRecordsTable)
@@ -105,6 +199,14 @@ router.patch("/consultation-records/:id", async (req, res, next): Promise<void> 
 });
 
 router.post("/consultation-records/:id/complete", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (isNaN(id)) {
@@ -112,6 +214,13 @@ router.post("/consultation-records/:id/complete", async (req, res, next): Promis
     return;
   }
   try {
+    const agencyId = await getConsultationAgencyId(id);
+    if (agencyId === null) {
+      res.status(404).json({ error: "Consultation record not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, agencyId, res)) return;
+
     req.log.info({ consultationId: id }, "Completing consultation record");
     const [record] = await db
       .update(consultationRecordsTable)
@@ -131,13 +240,20 @@ router.post("/consultation-records/:id/complete", async (req, res, next): Promis
 // --- PDF EXPORT ---
 
 router.get("/consultation-records/:id/pdf", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid ID" });
     return;
   }
 
-  // Fetch all data before starting the stream — any DB error here is safe to forward
   let record, appointment, customer, surgeon, event, agency, mediaItems, logoBuffer: Buffer | null;
   try {
     [record] = await db.select().from(consultationRecordsTable).where(eq(consultationRecordsTable.id, id));
@@ -151,6 +267,9 @@ router.get("/consultation-records/:id/pdf", async (req, res, next): Promise<void
     [surgeon]     = record.surgeonId  ? await db.select().from(surgeonsTable).where(eq(surgeonsTable.id, record.surgeonId))    : [null];
     [event]       = appointment ? await db.select().from(eventsTable).where(eq(eventsTable.id, appointment.eventId)) : [null];
     [agency]      = event ? await db.select().from(agenciesTable).where(eq(agenciesTable.id, event.agencyId)) : [null];
+
+    if (event && !assertAgencyAccess(req.currentUser, event.agencyId, res)) return;
+
     mediaItems    = await db.select().from(consultationMediaTable).where(eq(consultationMediaTable.consultationRecordId, id));
 
     logoBuffer = null;
@@ -165,7 +284,6 @@ router.get("/consultation-records/:id/pdf", async (req, res, next): Promise<void
     return;
   }
 
-  // All data loaded — start streaming the PDF (errors here are logged but headers already sent)
   try {
     const bmi = customer?.heightCm && customer?.weightKg
       ? (customer.weightKg / Math.pow(customer.heightCm / 100, 2)).toFixed(1)
@@ -344,12 +462,22 @@ router.get("/consultation-records/:id/pdf", async (req, res, next): Promise<void
 // --- MEDIA ---
 
 router.get("/consultation-records/:recordId/media", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = ListConsultationMediaParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
   try {
+    const agencyId = await getConsultationAgencyId(params.data.recordId);
+    if (agencyId !== null && !assertAgencyAccess(req.currentUser, agencyId, res)) return;
     const media = await db.select().from(consultationMediaTable)
       .where(eq(consultationMediaTable.consultationRecordId, params.data.recordId));
     res.json(media);
@@ -359,6 +487,14 @@ router.get("/consultation-records/:recordId/media", async (req, res, next): Prom
 });
 
 router.post("/consultation-records/:recordId/media", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = AddConsultationMediaParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -370,6 +506,9 @@ router.post("/consultation-records/:recordId/media", async (req, res, next): Pro
     return;
   }
   try {
+    const agencyId = await getConsultationAgencyId(params.data.recordId);
+    if (agencyId !== null && !assertAgencyAccess(req.currentUser, agencyId, res)) return;
+
     req.log.info({ consultationId: params.data.recordId, mediaType: parsed.data.mediaType }, "Adding consultation media");
     const [media] = await db.insert(consultationMediaTable).values({
       ...parsed.data,
@@ -383,12 +522,23 @@ router.post("/consultation-records/:recordId/media", async (req, res, next): Pro
 });
 
 router.delete("/consultation-records/:recordId/media/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   const params = DeleteConsultationMediaParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
   try {
+    const agencyId = await getConsultationAgencyId(params.data.recordId);
+    if (agencyId !== null && !assertAgencyAccess(req.currentUser, agencyId, res)) return;
+
     req.log.info({ mediaId: params.data.id, consultationId: params.data.recordId }, "Deleting consultation media");
     await db.delete(consultationMediaTable)
       .where(and(

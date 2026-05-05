@@ -7,7 +7,6 @@ import {
   UpdateEventParams,
   UpdateEventBody,
   DeleteEventParams,
-  ListEventsQueryParams,
   AddEventSurgeonParams,
   AddEventSurgeonBody,
   UpdateEventSurgeonParams,
@@ -15,14 +14,31 @@ import {
   RemoveEventSurgeonParams,
   ListEventSurgeonsParams,
 } from "@workspace/api-zod";
+import { isAppOwner, isAdminOrOwner, assertAgencyAccess } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
 router.get("/events", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
-    const qp = ListEventsQueryParams.safeParse(req.query);
-    const events = qp.success && qp.data.agencyId
-      ? await db.select().from(eventsTable).where(eq(eventsTable.agencyId, qp.data.agencyId))
+    const agencyId = isAppOwner(req.currentUser)
+      ? (req.query.agencyId ? Number(req.query.agencyId) : null)
+      : req.currentUser.agencyId;
+
+    if (!isAppOwner(req.currentUser) && !agencyId) {
+      res.status(403).json({ error: "Forbidden: no agency associated with this account" });
+      return;
+    }
+
+    const events = agencyId
+      ? await db.select().from(eventsTable).where(eq(eventsTable.agencyId, agencyId))
       : await db.select().from(eventsTable).orderBy(eventsTable.startDate);
     res.json(events);
   } catch (err) {
@@ -31,14 +47,27 @@ router.get("/events", async (req, res, next): Promise<void> => {
 });
 
 router.post("/events", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const parsed = CreateEventBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    req.log.info({ agencyId: parsed.data.agencyId }, "Creating event");
-    const [event] = await db.insert(eventsTable).values({ ...parsed.data, status: parsed.data.status ?? "draft" }).returning();
+    const agencyId = isAppOwner(req.currentUser) ? parsed.data.agencyId : req.currentUser.agencyId;
+    if (!agencyId) {
+      res.status(400).json({ error: "No agency associated with this account" });
+      return;
+    }
+    req.log.info({ agencyId }, "Creating event");
+    const [event] = await db.insert(eventsTable).values({ ...parsed.data, agencyId, status: parsed.data.status ?? "draft" }).returning();
     req.log.info({ eventId: event.id }, "Event created");
     res.status(201).json(event);
   } catch (err) {
@@ -47,6 +76,14 @@ router.post("/events", async (req, res, next): Promise<void> => {
 });
 
 router.get("/events/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = GetEventParams.safeParse(req.params);
     if (!params.success) {
@@ -58,6 +95,7 @@ router.get("/events/:id", async (req, res, next): Promise<void> => {
       res.status(404).json({ error: "Event not found" });
       return;
     }
+    if (!assertAgencyAccess(req.currentUser, event.agencyId, res)) return;
     res.json(event);
   } catch (err) {
     next(err);
@@ -65,6 +103,14 @@ router.get("/events/:id", async (req, res, next): Promise<void> => {
 });
 
 router.patch("/events/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = UpdateEventParams.safeParse(req.params);
     if (!params.success) {
@@ -76,6 +122,13 @@ router.patch("/events/:id", async (req, res, next): Promise<void> => {
       res.status(400).json({ error: parsed.error.message });
       return;
     }
+    const [existing] = await db.select().from(eventsTable).where(eq(eventsTable.id, params.data.id));
+    if (!existing) {
+      res.status(404).json({ error: "Event not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, existing.agencyId, res)) return;
+
     req.log.info({ eventId: params.data.id }, "Updating event");
     const cleanData: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(parsed.data)) {
@@ -93,12 +146,27 @@ router.patch("/events/:id", async (req, res, next): Promise<void> => {
 });
 
 router.delete("/events/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = DeleteEventParams.safeParse(req.params);
     if (!params.success) {
       res.status(400).json({ error: params.error.message });
       return;
     }
+    const [existing] = await db.select().from(eventsTable).where(eq(eventsTable.id, params.data.id));
+    if (!existing) {
+      res.status(404).json({ error: "Event not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, existing.agencyId, res)) return;
+
     req.log.info({ eventId: params.data.id }, "Deleting event");
     await db.delete(eventsTable).where(eq(eventsTable.id, params.data.id));
     res.sendStatus(204);
@@ -110,12 +178,26 @@ router.delete("/events/:id", async (req, res, next): Promise<void> => {
 // --- EVENT SURGEONS ---
 
 router.get("/events/:eventId/surgeons", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = ListEventSurgeonsParams.safeParse(req.params);
     if (!params.success) {
       res.status(400).json({ error: params.error.message });
       return;
     }
+    const [event] = await db.select().from(eventsTable).where(eq(eventsTable.id, params.data.eventId));
+    if (!event) {
+      res.status(404).json({ error: "Event not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, event.agencyId, res)) return;
     const eventSurgeons = await db.select().from(eventSurgeonsTable).where(eq(eventSurgeonsTable.eventId, params.data.eventId));
     res.json(eventSurgeons);
   } catch (err) {
@@ -124,6 +206,14 @@ router.get("/events/:eventId/surgeons", async (req, res, next): Promise<void> =>
 });
 
 router.post("/events/:eventId/surgeons", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = AddEventSurgeonParams.safeParse(req.params);
     if (!params.success) {
@@ -135,6 +225,12 @@ router.post("/events/:eventId/surgeons", async (req, res, next): Promise<void> =
       res.status(400).json({ error: parsed.error.message });
       return;
     }
+    const [event] = await db.select().from(eventsTable).where(eq(eventsTable.id, params.data.eventId));
+    if (!event) {
+      res.status(404).json({ error: "Event not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, event.agencyId, res)) return;
     req.log.info({ eventId: params.data.eventId, surgeonId: parsed.data.surgeonId }, "Assigning surgeon to event");
     const [es] = await db.insert(eventSurgeonsTable).values({ ...parsed.data, eventId: params.data.eventId }).returning();
     res.status(201).json(es);
@@ -144,6 +240,14 @@ router.post("/events/:eventId/surgeons", async (req, res, next): Promise<void> =
 });
 
 router.patch("/events/:eventId/surgeons/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = UpdateEventSurgeonParams.safeParse(req.params);
     if (!params.success) {
@@ -155,6 +259,13 @@ router.patch("/events/:eventId/surgeons/:id", async (req, res, next): Promise<vo
       res.status(400).json({ error: parsed.error.message });
       return;
     }
+    const [event] = await db.select().from(eventsTable).where(eq(eventsTable.id, params.data.eventId));
+    if (!event) {
+      res.status(404).json({ error: "Event not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, event.agencyId, res)) return;
+
     req.log.info({ eventId: params.data.eventId, eventSurgeonId: params.data.id }, "Updating event surgeon");
     const cleanData: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(parsed.data)) {
@@ -174,12 +285,27 @@ router.patch("/events/:eventId/surgeons/:id", async (req, res, next): Promise<vo
 });
 
 router.delete("/events/:eventId/surgeons/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminOrOwner(req.currentUser)) {
+    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    return;
+  }
   try {
     const params = RemoveEventSurgeonParams.safeParse(req.params);
     if (!params.success) {
       res.status(400).json({ error: params.error.message });
       return;
     }
+    const [event] = await db.select().from(eventsTable).where(eq(eventsTable.id, params.data.eventId));
+    if (!event) {
+      res.status(404).json({ error: "Event not found" });
+      return;
+    }
+    if (!assertAgencyAccess(req.currentUser, event.agencyId, res)) return;
+
     req.log.info({ eventId: params.data.eventId, eventSurgeonId: params.data.id }, "Removing surgeon from event");
     await db.delete(eventSurgeonsTable)
       .where(and(eq(eventSurgeonsTable.id, params.data.id), eq(eventSurgeonsTable.eventId, params.data.eventId)));

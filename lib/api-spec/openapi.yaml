@@ -1727,11 +1727,7 @@ components:
           type: string
           enum: [GBP, EUR, TRY]
           default: GBP
-        apiKey:
-          type: ["string", "null"]
         webhookUrl:
-          type: ["string", "null"]
-        webhookSecret:
           type: ["string", "null"]
         createdAt:
           type: string

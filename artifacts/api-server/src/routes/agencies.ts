@@ -13,6 +13,13 @@ import { isAppOwner, isAdminOrOwner, assertAgencyAccess } from "../middlewares/a
 
 const router: IRouter = Router();
 
+type AgencyRow = typeof agenciesTable.$inferSelect;
+
+function safeAgency(agency: AgencyRow) {
+  const { apiKey: _apiKey, webhookSecret: _webhookSecret, ...safe } = agency;
+  return safe;
+}
+
 router.get("/agencies", async (req, res, next): Promise<void> => {
   if (!req.currentUser) {
     res.status(401).json({ error: "Unauthorized" });
@@ -24,7 +31,7 @@ router.get("/agencies", async (req, res, next): Promise<void> => {
   }
   try {
     const agencies = await db.select().from(agenciesTable).orderBy(agenciesTable.name);
-    res.json(agencies);
+    res.json(agencies.map(safeAgency));
   } catch (err) {
     next(err);
   }
@@ -48,7 +55,7 @@ router.post("/agencies", async (req, res, next): Promise<void> => {
     req.log.info({ agencyName: parsed.data.name }, "Creating agency");
     const [agency] = await db.insert(agenciesTable).values(parsed.data).returning();
     req.log.info({ agencyId: agency.id }, "Agency created");
-    res.status(201).json(agency);
+    res.status(201).json(safeAgency(agency));
   } catch (err) {
     next(err);
   }
@@ -75,7 +82,7 @@ router.get("/agencies/:id", async (req, res, next): Promise<void> => {
       res.status(404).json({ error: "Agency not found" });
       return;
     }
-    res.json(agency);
+    res.json(safeAgency(agency));
   } catch (err) {
     next(err);
   }
@@ -116,7 +123,7 @@ router.patch("/agencies/:id", async (req, res, next): Promise<void> => {
       res.status(404).json({ error: "Agency not found" });
       return;
     }
-    res.json(agency);
+    res.json(safeAgency(agency));
   } catch (err) {
     next(err);
   }

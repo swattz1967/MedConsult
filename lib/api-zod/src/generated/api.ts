@@ -32,9 +32,7 @@ export const ListAgenciesResponseItem = zod.object({
   currency: zod
     .enum(["GBP", "EUR", "TRY"])
     .default(listAgenciesResponseCurrencyDefault),
-  apiKey: zod.string().nullish(),
   webhookUrl: zod.string().nullish(),
-  webhookSecret: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -77,9 +75,7 @@ export const GetAgencyResponse = zod.object({
   currency: zod
     .enum(["GBP", "EUR", "TRY"])
     .default(getAgencyResponseCurrencyDefault),
-  apiKey: zod.string().nullish(),
   webhookUrl: zod.string().nullish(),
-  webhookSecret: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -118,9 +114,7 @@ export const UpdateAgencyResponse = zod.object({
   currency: zod
     .enum(["GBP", "EUR", "TRY"])
     .default(updateAgencyResponseCurrencyDefault),
-  apiKey: zod.string().nullish(),
   webhookUrl: zod.string().nullish(),
-  webhookSecret: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });

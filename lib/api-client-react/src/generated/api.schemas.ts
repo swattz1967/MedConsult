@@ -37,11 +37,7 @@ export interface Agency {
   address?: string | null;
   currency: AgencyCurrency;
   /** @nullable */
-  apiKey?: string | null;
-  /** @nullable */
   webhookUrl?: string | null;
-  /** @nullable */
-  webhookSecret?: string | null;
   createdAt: string;
   updatedAt: string;
 }

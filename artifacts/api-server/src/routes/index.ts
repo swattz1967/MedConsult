@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { requireAuth, requireUser } from "../middlewares/auth";
 import healthRouter from "./health";
 import agenciesRouter from "./agencies";
+import publicAgenciesRouter from "./public-agencies";
 import usersRouter from "./users";
 import userSyncRouter from "./user-sync";
 import surgeonsRouter from "./surgeons";
@@ -17,12 +18,15 @@ import reminderSettingsRouter from "./reminder-settings";
 import emailPreviewRouter from "./email-preview";
 import emailLogsRouter from "./email-logs";
 import publicCustomersRouter from "./public-customers";
+import publicEventsRouter from "./public-events";
 
 const router: IRouter = Router();
 
 // Publicly accessible routes — no authentication required
 router.use(healthRouter);
 router.use(publicCustomersRouter);
+router.use(publicAgenciesRouter); // GET /agencies is public (used by events pages and AgencyProvider)
+router.use(publicEventsRouter);  // GET /events, /events/:id, /events/:eventId/surgeons, /surgeons/:id
 router.use(storageRouter); // storage router handles its own auth per path
 
 // All routes below require a valid Clerk session

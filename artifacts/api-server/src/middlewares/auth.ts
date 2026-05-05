@@ -12,9 +12,15 @@ declare global {
 }
 
 type ClerkAuth = { userId?: string };
+type ClerkAuthFn = (() => ClerkAuth) & ClerkAuth;
 
 export function getClerkUserId(req: Request): string | undefined {
-  return (req as unknown as { auth?: ClerkAuth }).auth?.userId;
+  const auth = (req as unknown as { auth?: ClerkAuthFn }).auth;
+  if (!auth) return undefined;
+  // @clerk/express v2: req.auth is a function — call it to get the auth object
+  if (typeof auth === "function") return auth()?.userId;
+  // fallback for any v1-style plain object
+  return auth.userId;
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {

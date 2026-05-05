@@ -111,10 +111,30 @@ router.get("/consultation-records", async (req, res, next): Promise<void> => {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
+
+  // Customer path: return only records for their own customer record
   if (!isAdminOrOwner(req.currentUser)) {
-    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    const customerOwnId = req.currentUser.customerId;
+    if (!customerOwnId) {
+      res.json([]);
+      return;
+    }
+    try {
+      const records = await db
+        .select({ record: consultationRecordsTable })
+        .from(consultationRecordsTable)
+        .innerJoin(appointmentsTable, eq(consultationRecordsTable.appointmentId, appointmentsTable.id))
+        .innerJoin(eventsTable, eq(appointmentsTable.eventId, eventsTable.id))
+        .where(eq(consultationRecordsTable.customerId, customerOwnId))
+        .orderBy(consultationRecordsTable.createdAt);
+      res.json(records.map(r => r.record));
+    } catch (err) {
+      next(err);
+    }
     return;
   }
+
+  // Admin / app_owner path
   try {
     const qp = ListConsultationRecordsQueryParams.safeParse(req.query);
     const conditions = [];

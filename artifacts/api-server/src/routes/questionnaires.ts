@@ -387,11 +387,28 @@ router.get("/questionnaire-responses", async (req, res, next): Promise<void> => 
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
+
+  // Customer path: return only responses for their own customer record
   if (!isAdminOrOwner(req.currentUser)) {
-    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    const customerOwnId = req.currentUser.customerId;
+    if (!customerOwnId) {
+      res.json([]);
+      return;
+    }
+    try {
+      const rows = await db
+        .select({ response: questionnaireResponsesTable })
+        .from(questionnaireResponsesTable)
+        .innerJoin(questionnairesTable, eq(questionnaireResponsesTable.questionnaireId, questionnairesTable.id))
+        .where(eq(questionnaireResponsesTable.customerId, customerOwnId));
+      res.json(rows.map(r => r.response));
+    } catch (err) {
+      next(err);
+    }
     return;
   }
 
+  // Admin / app_owner path
   const agencyId = isAppOwner(req.currentUser)
     ? (req.query.agencyId ? Number(req.query.agencyId) : null)
     : req.currentUser.agencyId;

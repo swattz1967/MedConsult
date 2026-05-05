@@ -34,10 +34,28 @@ router.get("/appointments", async (req, res, next): Promise<void> => {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
+
+  // Customer path: return only this customer's own appointments
   if (!isAdminOrOwner(req.currentUser)) {
-    res.status(403).json({ error: "Forbidden: insufficient permissions" });
+    const customerOwnId = req.currentUser.customerId;
+    if (!customerOwnId) {
+      res.json([]);
+      return;
+    }
+    try {
+      const rows = await db.select().from(appointmentsTable)
+        .leftJoin(customersTable, eq(appointmentsTable.customerId, customersTable.id))
+        .leftJoin(surgeonsTable, eq(appointmentsTable.surgeonId, surgeonsTable.id))
+        .innerJoin(eventsTable, eq(appointmentsTable.eventId, eventsTable.id))
+        .where(eq(appointmentsTable.customerId, customerOwnId));
+      res.json(rows.map(r => ({ ...r.appointments, customer: r.customers, surgeon: r.surgeons, event: r.events })));
+    } catch (err) {
+      next(err);
+    }
     return;
   }
+
+  // Admin / app_owner path
   const qp = ListAppointmentsQueryParams.safeParse(req.query);
   const conditions = [];
   if (qp.success) {
@@ -66,13 +84,7 @@ router.get("/appointments", async (req, res, next): Promise<void> => {
           .leftJoin(surgeonsTable, eq(appointmentsTable.surgeonId, surgeonsTable.id))
           .innerJoin(eventsTable, eq(appointmentsTable.eventId, eventsTable.id))
     );
-    const appointments = rows.map(r => ({
-      ...r.appointments,
-      customer: r.customers,
-      surgeon: r.surgeons,
-      event: r.events,
-    }));
-    res.json(appointments);
+    res.json(rows.map(r => ({ ...r.appointments, customer: r.customers, surgeon: r.surgeons, event: r.events })));
   } catch (err) {
     next(err);
   }

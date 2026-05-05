@@ -20,22 +20,6 @@ function safeAgency(agency: AgencyRow) {
   return safe;
 }
 
-router.get("/agencies", async (req, res, next): Promise<void> => {
-  if (!req.currentUser) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  if (!isAppOwner(req.currentUser)) {
-    res.status(403).json({ error: "Forbidden: insufficient permissions" });
-    return;
-  }
-  try {
-    const agencies = await db.select().from(agenciesTable).orderBy(agenciesTable.name);
-    res.json(agencies.map(safeAgency));
-  } catch (err) {
-    next(err);
-  }
-});
 
 router.post("/agencies", async (req, res, next): Promise<void> => {
   if (!req.currentUser) {

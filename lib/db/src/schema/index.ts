@@ -11,3 +11,4 @@ export * from "./consultations";
 export * from "./config";
 export * from "./reminderRules";
 export * from "./emailLogs";
+export * from "./uploadTokens";

@@ -441,7 +441,8 @@ router.get("/events/:eventId/schedule-pdf", async (req, res, next): Promise<void
     } else {
       doc.fillColor("white").fontSize(22).font("Helvetica-Bold").text(agencyName, 50, 20);
     }
-    doc.fillColor("white").fontSize(11).font("Helvetica").text("Appointment Schedule", 50, 46);
+    doc.fillColor("white").fontSize(13).font("Helvetica-Bold")
+      .text("Appointment Schedule", 0, 28, { width: doc.page.width, align: "center" });
     doc.fillColor("white").fontSize(9).font("Helvetica")
       .text(`Generated: ${new Date().toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })}`, 50, 46, { align: "right", width: PAGE_WIDTH });
 

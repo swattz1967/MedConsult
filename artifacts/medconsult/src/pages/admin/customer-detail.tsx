@@ -222,7 +222,10 @@ export default function CustomerDetail() {
   const now = new Date();
 
   const { data: customer, isLoading } = useGetCustomer(customerId);
-  const { data: appointments } = useListAppointments({ customerId });
+  const { data: appointmentsRaw } = useListAppointments({ customerId });
+  const appointments = [...(appointmentsRaw ?? [])].sort(
+    (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+  );
   const updateCustomer = useUpdateCustomer();
   const sendReminder = useSendDeclarationReminder();
 

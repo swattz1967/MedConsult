@@ -30,8 +30,11 @@ export default function SurgeonAppointments() {
   const { data: user, isLoading: isUserLoading } = useGetCurrentUser();
   const surgeonId = user?.surgeonId ?? undefined;
 
-  const { data: appointments, isLoading: isAppointmentsLoading } = useListAppointments(
+  const { data: appointmentsRaw, isLoading: isAppointmentsLoading } = useListAppointments(
     { surgeonId },
+  );
+  const appointments = [...(appointmentsRaw ?? [])].sort(
+    (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
   );
 
   const [filter, setFilter] = useState<Filter>("all");

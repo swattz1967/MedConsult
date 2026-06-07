@@ -12,7 +12,10 @@ export default function SurgeonDashboard() {
   const { data: user, isLoading: isUserLoading } = useGetCurrentUser();
   const surgeonId = user?.surgeonId ?? undefined;
 
-  const { data: appointments, isLoading: isAppointmentsLoading } = useListAppointments({ surgeonId });
+  const { data: appointmentsRaw, isLoading: isAppointmentsLoading } = useListAppointments({ surgeonId });
+  const appointments = [...(appointmentsRaw ?? [])].sort(
+    (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+  );
 
   const now = useMemo(() => new Date(), []);
 

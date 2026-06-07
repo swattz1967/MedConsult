@@ -700,7 +700,10 @@ function AppointmentsTab({ eventId, eventStartDate }: { eventId: number; eventSt
   const { formatCurrency } = useAgency();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { data: appointments = [], isLoading } = useListAppointments({ eventId });
+  const { data: appointmentsRaw = [], isLoading } = useListAppointments({ eventId });
+  const appointments = [...appointmentsRaw].sort(
+    (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+  );
   const { data: eventSurgeons = [] } = useListEventSurgeons(eventId);
   const { data: allSurgeons = [] } = useListSurgeons();
   const { data: customersRaw = [] } = useListCustomers();

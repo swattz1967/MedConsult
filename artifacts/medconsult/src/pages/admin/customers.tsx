@@ -1,6 +1,10 @@
 import { useState, useMemo, useCallback } from "react";
-import { useListCustomers, sendDeclarationReminder } from "@workspace/api-client-react";
+import {
+  useListCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer,
+  getListCustomersQueryKey, sendDeclarationReminder,
+} from "@workspace/api-client-react";
 import { useAgency } from "@/contexts/AgencyContext";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,6 +14,12 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import {
   Users,
   CheckCircle2,
@@ -21,23 +31,144 @@ import {
   Loader2,
   AlertCircle,
   PoundSterling,
+  Plus,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+
+type CustomerRow = {
+  id: number; firstName: string; lastName: string;
+  email?: string | null; phone?: string | null; dialingCode?: string | null;
+  nationality?: string | null;
+};
+
+const customerSchema = z.object({
+  firstName: z.string().min(1, "First name required"),
+  lastName: z.string().min(1, "Last name required"),
+  email: z.string().email("Valid email required").or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
+  dialingCode: z.string().optional().or(z.literal("")),
+  nationality: z.string().optional().or(z.literal("")),
+});
+type CustomerFormValues = z.infer<typeof customerSchema>;
+
+function CustomerFormDialog({
+  open, onOpenChange, editing, onSubmit, isPending,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  editing: CustomerRow | null;
+  onSubmit: (values: CustomerFormValues) => void;
+  isPending: boolean;
+}) {
+  const form = useForm<CustomerFormValues>({
+    resolver: zodResolver(customerSchema),
+    values: editing ? {
+      firstName: editing.firstName,
+      lastName: editing.lastName,
+      email: editing.email ?? "",
+      phone: editing.phone ?? "",
+      dialingCode: editing.dialingCode ?? "",
+      nationality: editing.nationality ?? "",
+    } : { firstName: "", lastName: "", email: "", phone: "", dialingCode: "", nationality: "" },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) form.reset(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{editing ? `Edit — ${editing.firstName} ${editing.lastName}` : "Add Customer"}</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="firstName" render={({ field }) => (
+                <FormItem><FormLabel>First Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="lastName" render={({ field }) => (
+                <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <FormField control={form.control} name="email" render={({ field }) => (
+              <FormItem><FormLabel>Email</FormLabel><FormControl><Input {...field} type="email" /></FormControl><FormMessage /></FormItem>
+            )} />
+            <div className="grid grid-cols-3 gap-4">
+              <FormField control={form.control} name="dialingCode" render={({ field }) => (
+                <FormItem><FormLabel>Dialling Code</FormLabel><FormControl><Input {...field} placeholder="+44" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="phone" render={({ field }) => (
+                <FormItem className="col-span-2"><FormLabel>Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <FormField control={form.control} name="nationality" render={({ field }) => (
+              <FormItem><FormLabel>Nationality</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+            )} />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button type="submit" disabled={isPending}>{isPending ? "Saving…" : "Save"}</Button>
+            </div>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 type Filter = "all" | "signed" | "unsigned";
 type SendState = "idle" | "sending" | "sent" | "error";
 
 export default function CustomersList() {
-  const { formatCurrency } = useAgency();
+  const { agencyId, formatCurrency } = useAgency();
   const { data: customers, isLoading } = useListCustomers();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [sendStates, setSendStates] = useState<Record<number, SendState>>({});
   const [isBulkSending, setIsBulkSending] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<CustomerRow | null>(null);
+
+  const createCustomer = useCreateCustomer();
+  const updateCustomer = useUpdateCustomer();
+  const deleteCustomer = useDeleteCustomer();
+
+  const handleCreate = (values: CustomerFormValues) => {
+    createCustomer.mutate({ data: { ...values, agencyId, email: values.email || null } }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListCustomersQueryKey() });
+        setCreateOpen(false);
+        toast({ title: "Customer created" });
+      },
+      onError: () => toast({ title: "Failed to create customer", variant: "destructive" }),
+    });
+  };
+
+  const handleEdit = (values: CustomerFormValues) => {
+    if (!editingCustomer) return;
+    updateCustomer.mutate({ id: editingCustomer.id, data: { ...values, email: values.email || null } }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListCustomersQueryKey() });
+        setEditingCustomer(null);
+        toast({ title: "Customer updated" });
+      },
+      onError: () => toast({ title: "Failed to update customer", variant: "destructive" }),
+    });
+  };
+
+  const handleDelete = (id: number, name: string) => {
+    deleteCustomer.mutate({ id }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListCustomersQueryKey() });
+        toast({ title: `${name} deleted` });
+      },
+      onError: () => toast({ title: "Failed to delete customer", variant: "destructive" }),
+    });
+  };
 
   const stats = useMemo(() => {
     if (!customers) return { total: 0, signed: 0, unsigned: 0, pct: 0, totalEarned: 0, totalPending: 0 };
@@ -176,7 +307,25 @@ export default function CustomersList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold tracking-tight">Customers</h2>
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />Add Customer
+        </Button>
       </div>
+
+      <CustomerFormDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        editing={null}
+        onSubmit={handleCreate}
+        isPending={createCustomer.isPending}
+      />
+      <CustomerFormDialog
+        open={!!editingCustomer}
+        onOpenChange={(v) => { if (!v) setEditingCustomer(null); }}
+        editing={editingCustomer}
+        onSubmit={handleEdit}
+        isPending={updateCustomer.isPending}
+      />
 
       {/* KPI row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -503,9 +652,33 @@ export default function CustomersList() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Link href={`/admin/customers/${customer.id}`}>
-                          <Button variant="outline" size="sm">View</Button>
-                        </Link>
+                        <div className="flex items-center justify-end gap-1">
+                          <Link href={`/admin/customers/${customer.id}`}>
+                            <Button variant="outline" size="sm">View</Button>
+                          </Link>
+                          <Button variant="ghost" size="icon" title="Edit customer" onClick={() => setEditingCustomer(customer as CustomerRow)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" title="Delete customer">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete {customer.firstName} {customer.lastName}?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently delete this customer and all their associated data. This cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(customer.id, `${customer.firstName} ${customer.lastName}`)}>Delete</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus, Pencil, Trash2, UserMinus } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, UserMinus, FileDown } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
@@ -847,6 +847,11 @@ export default function EventDetail() {
           </Badge>
         </div>
         <div className="flex gap-2">
+          <a href={`/api/events/${eventId}/schedule-pdf`} target="_blank" rel="noopener noreferrer">
+            <Button variant="outline">
+              <FileDown className="mr-2 h-4 w-4" />Download Schedule
+            </Button>
+          </a>
           {event.status === "draft" && <Button onClick={() => handleStatusChange("published")}>Publish Event</Button>}
           {event.status === "published" && <Button variant="destructive" onClick={() => handleStatusChange("closed")}>Close Event</Button>}
           {event.status === "closed" && <Button variant="outline" onClick={() => handleStatusChange("draft")}>Revert to Draft</Button>}

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
-import { db, eventsTable, eventSurgeonsTable, eventCustomersTable, customersTable } from "@workspace/db";
+import { eq, and, asc } from "drizzle-orm";
+import { db, eventsTable, eventSurgeonsTable, eventCustomersTable, customersTable, agenciesTable, appointmentsTable, surgeonsTable } from "@workspace/db";
 import {
   CreateEventBody,
   GetEventParams,
@@ -18,6 +18,8 @@ import {
   RemoveEventCustomerParams,
 } from "@workspace/api-zod";
 import { isAppOwner, isAdminOrOwner, assertAgencyAccess } from "../middlewares/auth";
+import PDFDocument from "pdfkit";
+import { fetchLogoBuffer } from "../lib/pdf";
 
 const router: IRouter = Router();
 
@@ -377,6 +379,193 @@ router.delete("/events/:eventId/customers/:id", async (req, res, next): Promise<
       .where(and(eq(eventCustomersTable.id, params.data.id), eq(eventCustomersTable.eventId, params.data.eventId)));
     res.sendStatus(204);
   } catch (err) { next(err); }
+});
+
+// --- SCHEDULE PDF ---
+
+router.get("/events/:eventId/schedule-pdf", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (!isAdminOrOwner(req.currentUser)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const eventId = parseInt(req.params.eventId, 10);
+  if (isNaN(eventId)) { res.status(400).json({ error: "Invalid event ID" }); return; }
+
+  try {
+    const [event] = await db.select().from(eventsTable).where(eq(eventsTable.id, eventId));
+    if (!event) { res.status(404).json({ error: "Event not found" }); return; }
+    if (!assertAgencyAccess(req.currentUser, event.agencyId, res)) return;
+
+    const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, event.agencyId));
+
+    const rows = await db
+      .select({
+        id: appointmentsTable.id,
+        startTime: appointmentsTable.startTime,
+        endTime: appointmentsTable.endTime,
+        status: appointmentsTable.status,
+        fee: appointmentsTable.fee,
+        surgeonFirstName: surgeonsTable.firstName,
+        surgeonLastName: surgeonsTable.lastName,
+        customerFirstName: customersTable.firstName,
+        customerLastName: customersTable.lastName,
+      })
+      .from(appointmentsTable)
+      .innerJoin(surgeonsTable, eq(appointmentsTable.surgeonId, surgeonsTable.id))
+      .innerJoin(customersTable, eq(appointmentsTable.customerId, customersTable.id))
+      .where(eq(appointmentsTable.eventId, eventId))
+      .orderBy(asc(appointmentsTable.startTime));
+
+    const logoBuffer = agency?.logoUrl ? await fetchLogoBuffer(agency.logoUrl) : null;
+
+    const BRAND    = agency?.primaryColor ?? "#1a6b5c";
+    const LIGHT    = "#f0f9f6";
+    const GREY     = "#555555";
+    const agencyName = agency?.name ?? "MedConsult";
+
+    const doc = new PDFDocument({ margin: 50, size: "A4" });
+    const PAGE_WIDTH = doc.page.width - 100;
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="schedule-event-${eventId}.pdf"`);
+    doc.pipe(res);
+
+    // ── Header bar ──────────────────────────────────────────────────────────
+    doc.rect(0, 0, doc.page.width, 70).fill(BRAND);
+    if (logoBuffer) {
+      try {
+        doc.image(logoBuffer, 50, 12, { height: 46, fit: [180, 46] });
+      } catch {
+        doc.fillColor("white").fontSize(22).font("Helvetica-Bold").text(agencyName, 50, 20);
+      }
+    } else {
+      doc.fillColor("white").fontSize(22).font("Helvetica-Bold").text(agencyName, 50, 20);
+    }
+    doc.fillColor("white").fontSize(11).font("Helvetica").text("Appointment Schedule", 50, 46);
+    doc.fillColor("white").fontSize(9).font("Helvetica")
+      .text(`Generated: ${new Date().toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })}`, 50, 46, { align: "right", width: PAGE_WIDTH });
+
+    // ── Event heading ────────────────────────────────────────────────────────
+    doc.moveDown(3.5);
+    doc.fillColor("#000000").fontSize(20).font("Helvetica-Bold").text(event.name, 50, doc.y, { width: PAGE_WIDTH });
+    doc.moveDown(0.4);
+
+    const startLabel = new Date(event.startDate).toLocaleDateString("en-GB", { dateStyle: "long" });
+    const endLabel   = new Date(event.endDate).toLocaleDateString("en-GB",   { dateStyle: "long" });
+    doc.fillColor(GREY).fontSize(11).font("Helvetica").text(`${event.venue}  ·  ${startLabel} – ${endLabel}`, 50, doc.y, { width: PAGE_WIDTH });
+    if (event.description) {
+      doc.moveDown(0.4);
+      doc.fillColor(GREY).fontSize(10).font("Helvetica").text(event.description, 50, doc.y, { width: PAGE_WIDTH });
+    }
+
+    doc.moveDown(1.2);
+    doc.moveTo(50, doc.y).lineTo(50 + PAGE_WIDTH, doc.y).stroke(BRAND);
+    doc.moveDown(0.8);
+
+    // ── Summary stats ────────────────────────────────────────────────────────
+    const total     = rows.length;
+    const completed = rows.filter(r => r.status === "completed").length;
+    const scheduled = rows.filter(r => r.status === "scheduled").length;
+
+    doc.rect(50, doc.y, PAGE_WIDTH, 36).fill(LIGHT);
+    const statY = doc.y + 10;
+    const colW  = PAGE_WIDTH / 3;
+    const stats = [
+      { label: "Total Appointments", val: String(total) },
+      { label: "Scheduled",          val: String(scheduled) },
+      { label: "Completed",          val: String(completed) },
+    ];
+    stats.forEach((s, i) => {
+      const x = 58 + i * colW;
+      doc.fillColor(BRAND).fontSize(14).font("Helvetica-Bold").text(s.val, x, statY, { width: colW - 8 });
+      doc.fillColor(GREY).fontSize(8).font("Helvetica").text(s.label, x, statY + 16, { width: colW - 8 });
+    });
+    doc.moveDown(2.8);
+
+    // ── Table header ─────────────────────────────────────────────────────────
+    if (rows.length === 0) {
+      doc.fillColor(GREY).fontSize(11).font("Helvetica").text("No appointments have been booked for this event yet.", 50, doc.y, { width: PAGE_WIDTH });
+    } else {
+      const COL = { time: 50, surgeon: 170, customer: 330, status: 440, fee: 510 };
+      const ROW_H = 22;
+
+      doc.rect(50, doc.y, PAGE_WIDTH, ROW_H).fill(BRAND);
+      const hY = doc.y + 6;
+      doc.fillColor("white").fontSize(9).font("Helvetica-Bold");
+      doc.text("Time",     COL.time,    hY, { width: 115 });
+      doc.text("Surgeon",  COL.surgeon,  hY, { width: 155 });
+      doc.text("Customer", COL.customer, hY, { width: 105 });
+      doc.text("Status",   COL.status,   hY, { width: 65 });
+      doc.text("Fee",      COL.fee,      hY, { width: 45 });
+      doc.moveDown(1.6);
+
+      let shade = false;
+      for (const appt of rows) {
+        if (doc.y > doc.page.height - 80) {
+          doc.addPage();
+          // repeat header bar on new page
+          doc.rect(0, 0, doc.page.width, 40).fill(BRAND);
+          doc.fillColor("white").fontSize(10).font("Helvetica-Bold")
+            .text(`${event.name} — Schedule (continued)`, 50, 12, { width: PAGE_WIDTH });
+          doc.moveDown(2.5);
+
+          doc.rect(50, doc.y, PAGE_WIDTH, ROW_H).fill(BRAND);
+          const nhY = doc.y + 6;
+          doc.fillColor("white").fontSize(9).font("Helvetica-Bold");
+          doc.text("Time",     COL.time,    nhY, { width: 115 });
+          doc.text("Surgeon",  COL.surgeon,  nhY, { width: 155 });
+          doc.text("Customer", COL.customer, nhY, { width: 105 });
+          doc.text("Status",   COL.status,   nhY, { width: 65 });
+          doc.text("Fee",      COL.fee,      nhY, { width: 45 });
+          doc.moveDown(1.6);
+          shade = false;
+        }
+
+        if (shade) doc.rect(50, doc.y, PAGE_WIDTH, ROW_H).fill("#f8fafc");
+        shade = !shade;
+
+        const rowY = doc.y + 5;
+        const start = new Date(appt.startTime);
+        const end   = new Date(appt.endTime);
+        const timeStr = `${start.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} – ${end.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+        const dateStr = start.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+
+        const statusColor =
+          appt.status === "completed"  ? "#16a34a" :
+          appt.status === "cancelled"  ? "#dc2626" :
+          appt.status === "no_show"    ? "#9333ea" :
+          "#d97706";
+
+        doc.fillColor("#000000").fontSize(9).font("Helvetica");
+        doc.text(`${dateStr}  ${timeStr}`, COL.time,    rowY, { width: 115 });
+        doc.text(`${appt.surgeonFirstName} ${appt.surgeonLastName}`,   COL.surgeon,  rowY, { width: 155 });
+        doc.text(`${appt.customerFirstName} ${appt.customerLastName}`, COL.customer, rowY, { width: 105 });
+        doc.fillColor(statusColor).font("Helvetica-Bold")
+          .text(appt.status.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase()), COL.status, rowY, { width: 65 });
+        doc.fillColor(GREY).font("Helvetica")
+          .text(appt.fee != null ? `${appt.fee.toFixed(0)}` : "—", COL.fee, rowY, { width: 45 });
+        doc.moveDown(1.5);
+
+        // row divider
+        doc.moveTo(50, doc.y - 2).lineTo(50 + PAGE_WIDTH, doc.y - 2).stroke("#e2e8f0");
+      }
+    }
+
+    // ── Footer ───────────────────────────────────────────────────────────────
+    const pageH = doc.page.height;
+    doc.rect(0, pageH - 40, doc.page.width, 40).fill(BRAND);
+    const footerLeft = agency?.email ? `${agencyName} — ${agency.email}` : agencyName;
+    doc.fillColor("white").fontSize(9).font("Helvetica")
+      .text(`${footerLeft} — Appointment Schedule — ${event.name}`, 50, pageH - 26, { align: "center", width: PAGE_WIDTH });
+
+    doc.end();
+  } catch (err) {
+    req.log.error({ err, eventId }, "Error generating schedule PDF");
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to generate PDF" });
+    } else {
+      res.destroy();
+    }
+  }
 });
 
 export default router;

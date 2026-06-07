@@ -20,6 +20,17 @@ function safeAgency(agency: AgencyRow) {
   return safe;
 }
 
+// A logo URL must point at the public agency-logo serving route. This prevents a
+// privileged user from "publishing" an arbitrary private object by setting it as
+// their agency logo (which is served without authentication).
+function invalidLogoUrl(logoUrl: unknown): string | null {
+  if (logoUrl == null || logoUrl === "") return null;
+  if (typeof logoUrl !== "string" || !logoUrl.startsWith("/api/storage/agency-logos/")) {
+    return "logoUrl must reference an uploaded agency logo";
+  }
+  return null;
+}
+
 
 router.post("/agencies", async (req, res, next): Promise<void> => {
   if (!req.currentUser) {
@@ -33,6 +44,11 @@ router.post("/agencies", async (req, res, next): Promise<void> => {
   const parsed = CreateAgencyBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const createLogoErr = invalidLogoUrl(parsed.data.logoUrl);
+  if (createLogoErr) {
+    res.status(400).json({ error: createLogoErr });
     return;
   }
   try {
@@ -90,6 +106,11 @@ router.patch("/agencies/:id", async (req, res, next): Promise<void> => {
   const parsed = UpdateAgencyBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const updateLogoErr = invalidLogoUrl(parsed.data.logoUrl);
+  if (updateLogoErr) {
+    res.status(400).json({ error: updateLogoErr });
     return;
   }
   const cleanData: Record<string, unknown> = {};

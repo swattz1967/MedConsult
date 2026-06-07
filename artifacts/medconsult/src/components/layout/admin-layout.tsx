@@ -227,6 +227,13 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   </div>
                 </SheetContent>
               </Sheet>
+              {currentAgency?.logoUrl && (
+                <img
+                  src={currentAgency.logoUrl}
+                  alt={currentAgency.name}
+                  className="h-8 w-auto max-w-[120px] object-contain hidden sm:block"
+                />
+              )}
               <h1 className="text-lg font-semibold tracking-tight hidden sm:block">
                 {t("nav.adminPortal")}
               </h1>

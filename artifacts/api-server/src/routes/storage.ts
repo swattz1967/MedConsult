@@ -5,7 +5,7 @@ import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
 } from "@workspace/api-zod";
-import { db, consultationMediaTable, consultationRecordsTable, appointmentsTable, eventsTable, uploadTokensTable } from "@workspace/db";
+import { db, consultationMediaTable, consultationRecordsTable, appointmentsTable, eventsTable, uploadTokensTable, agenciesTable } from "@workspace/db";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { requireUser, isAppOwner } from "../middlewares/auth";
 
@@ -43,6 +43,55 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
   } catch (error) {
     req.log.error({ err: error }, "Error serving public object");
     res.status(500).json({ error: "Failed to serve public object" });
+  }
+});
+
+/**
+ * GET /storage/agency-logos/*
+ *
+ * Serve agency logos publicly (no authentication). Agency branding appears on
+ * public pages (registration, event listings) and is loaded via plain <img>
+ * tags that cannot send a bearer token. To stay safe, this route ONLY serves an
+ * object whose full public URL is referenced by some agency's `logoUrl` — it
+ * cannot be used to enumerate arbitrary private objects.
+ */
+router.get("/storage/agency-logos/*path", async (req: Request, res: Response) => {
+  try {
+    const raw = req.params.path;
+    const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
+    const objectPath = `/objects/${wildcardPath}`;
+    const publicUrl = `/api/storage/agency-logos/${wildcardPath}`;
+
+    // Security: only serve objects actually referenced as an agency logo.
+    const rows = await db
+      .select({ id: agenciesTable.id })
+      .from(agenciesTable)
+      .where(eq(agenciesTable.logoUrl, publicUrl));
+
+    if (rows.length === 0) {
+      res.status(404).json({ error: "Logo not found" });
+      return;
+    }
+
+    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+    const response = await objectStorageService.downloadObject(objectFile);
+
+    res.status(response.status);
+    response.headers.forEach((value, key) => res.setHeader(key, value));
+
+    if (response.body) {
+      const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
+      nodeStream.pipe(res);
+    } else {
+      res.end();
+    }
+  } catch (error) {
+    if (error instanceof ObjectNotFoundError) {
+      res.status(404).json({ error: "Logo not found" });
+      return;
+    }
+    req.log.error({ err: error }, "Error serving agency logo");
+    res.status(500).json({ error: "Failed to serve agency logo" });
   }
 });
 

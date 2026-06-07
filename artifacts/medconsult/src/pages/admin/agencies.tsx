@@ -200,7 +200,7 @@ function LogoUpload({ value, onChange }: LogoUploadProps) {
 
   const { uploadFile, isUploading } = useUpload({
     onSuccess: (res) => {
-      const url = `/api/storage${res.objectKey}`;
+      const url = `/api/storage/agency-logos${res.objectKey.replace(/^\/objects/, "")}`;
       onChange(url);
     },
     onError: () => {

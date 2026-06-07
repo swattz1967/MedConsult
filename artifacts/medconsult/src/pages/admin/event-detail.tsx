@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "wouter";
 import {
   useGetEvent, useUpdateEvent, getGetEventQueryKey,
@@ -346,8 +346,9 @@ function SurgeonsTab({ eventId }: { eventId: number }) {
 
 // ─── Add Appointment Dialog ────────────────────────────────────────────────────
 
-function AddAppointmentDialog({ eventId, eventSurgeons, allSurgeons, customers }: {
+function AddAppointmentDialog({ eventId, eventStartDate, eventSurgeons, allSurgeons, customers }: {
   eventId: number;
+  eventStartDate: string;
   eventSurgeons: Array<{ id: number; surgeonId: number; defaultFee?: number | null; defaultSlotMinutes?: number | null }>;
   allSurgeons: Array<{ id: number; firstName: string; lastName: string }>;
   customers: Array<{ id: number; firstName: string; lastName: string; email?: string | null }>;
@@ -358,16 +359,32 @@ function AddAppointmentDialog({ eventId, eventSurgeons, allSurgeons, customers }
   const createAppointment = useCreateAppointment();
   const surgeonMap = new Map(allSurgeons.map((s) => [s.id, s]));
 
+  const defaultStartTime = `${eventStartDate.slice(0, 10)}T09:00`;
+
   const form = useForm<z.infer<typeof addAppointmentSchema>>({
     resolver: zodResolver(addAppointmentSchema),
     defaultValues: {
-      surgeonId: "", customerId: "", startTime: "", endTime: "",
+      surgeonId: "", customerId: "", startTime: defaultStartTime, endTime: "",
       fee: "", status: "scheduled", notes: "",
     },
   });
 
   const selectedSurgeonId = form.watch("surgeonId");
+  const watchedStartTime = form.watch("startTime");
   const selectedEventSurgeon = eventSurgeons.find((es) => String(es.surgeonId) === selectedSurgeonId);
+  const slotMinutes = selectedEventSurgeon?.defaultSlotMinutes ?? 30;
+
+  useEffect(() => {
+    if (!watchedStartTime) return;
+    const start = new Date(watchedStartTime);
+    if (isNaN(start.getTime())) return;
+    const end = new Date(start.getTime() + slotMinutes * 60_000);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    form.setValue(
+      "endTime",
+      `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}`,
+    );
+  }, [watchedStartTime, slotMinutes]);
 
   const onSubmit = (values: z.infer<typeof addAppointmentSchema>) => {
     createAppointment.mutate({
@@ -520,7 +537,7 @@ function AddAppointmentDialog({ eventId, eventSurgeons, allSurgeons, customers }
 
 // ─── Appointments Tab ──────────────────────────────────────────────────────────
 
-function AppointmentsTab({ eventId }: { eventId: number }) {
+function AppointmentsTab({ eventId, eventStartDate }: { eventId: number; eventStartDate: string }) {
   const { formatCurrency } = useAgency();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -548,6 +565,7 @@ function AppointmentsTab({ eventId }: { eventId: number }) {
         <CardTitle>Appointments</CardTitle>
         <AddAppointmentDialog
           eventId={eventId}
+          eventStartDate={eventStartDate}
           eventSurgeons={eventSurgeons}
           allSurgeons={allSurgeons}
           customers={customers}
@@ -694,7 +712,7 @@ export default function EventDetail() {
         </TabsContent>
 
         <TabsContent value="appointments" className="mt-4">
-          <AppointmentsTab eventId={eventId} />
+          <AppointmentsTab eventId={eventId} eventStartDate={event.startDate} />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, eventsTable, eventSurgeonsTable } from "@workspace/db";
+import { db, eventsTable, eventSurgeonsTable, eventCustomersTable, customersTable } from "@workspace/db";
 import {
   CreateEventBody,
   GetEventParams,
@@ -13,6 +13,9 @@ import {
   UpdateEventSurgeonBody,
   RemoveEventSurgeonParams,
   ListEventSurgeonsParams,
+  ListEventCustomersParams,
+  AddEventCustomerBody,
+  RemoveEventCustomerParams,
 } from "@workspace/api-zod";
 import { isAppOwner, isAdminOrOwner, assertAgencyAccess } from "../middlewares/auth";
 
@@ -313,6 +316,67 @@ router.delete("/events/:eventId/surgeons/:id", async (req, res, next): Promise<v
   } catch (err) {
     next(err);
   }
+});
+
+// ─── Event Customers ─────────────────────────────────────────────────────────
+
+router.get("/events/:eventId/customers", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (!isAdminOrOwner(req.currentUser)) { res.status(403).json({ error: "Forbidden" }); return; }
+  try {
+    const params = ListEventCustomersParams.safeParse(req.params);
+    if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+    const [event] = await db.select().from(eventsTable).where(eq(eventsTable.id, params.data.eventId));
+    if (!event) { res.status(404).json({ error: "Event not found" }); return; }
+    if (!assertAgencyAccess(req.currentUser, event.agencyId, res)) return;
+    const rows = await db
+      .select()
+      .from(eventCustomersTable)
+      .innerJoin(customersTable, eq(eventCustomersTable.customerId, customersTable.id))
+      .where(eq(eventCustomersTable.eventId, params.data.eventId));
+    res.json(rows.map((r) => ({ ...r.event_customers, customer: r.customers })));
+  } catch (err) { next(err); }
+});
+
+router.post("/events/:eventId/customers", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (!isAdminOrOwner(req.currentUser)) { res.status(403).json({ error: "Forbidden" }); return; }
+  try {
+    const params = ListEventCustomersParams.safeParse(req.params);
+    if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+    const parsed = AddEventCustomerBody.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+    const [event] = await db.select().from(eventsTable).where(eq(eventsTable.id, params.data.eventId));
+    if (!event) { res.status(404).json({ error: "Event not found" }); return; }
+    if (!assertAgencyAccess(req.currentUser, event.agencyId, res)) return;
+    const [customerCheck] = await db.select({ agencyId: customersTable.agencyId })
+      .from(customersTable).where(eq(customersTable.id, parsed.data.customerId));
+    if (!customerCheck || customerCheck.agencyId !== event.agencyId) {
+      res.status(400).json({ error: "Customer does not belong to this agency" }); return;
+    }
+    req.log.info({ eventId: params.data.eventId, customerId: parsed.data.customerId }, "Adding customer to event");
+    const [ec] = await db.insert(eventCustomersTable)
+      .values({ eventId: params.data.eventId, customerId: parsed.data.customerId })
+      .returning();
+    const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, ec.customerId));
+    res.status(201).json({ ...ec, customer });
+  } catch (err) { next(err); }
+});
+
+router.delete("/events/:eventId/customers/:id", async (req, res, next): Promise<void> => {
+  if (!req.currentUser) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (!isAdminOrOwner(req.currentUser)) { res.status(403).json({ error: "Forbidden" }); return; }
+  try {
+    const params = RemoveEventCustomerParams.safeParse(req.params);
+    if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+    const [event] = await db.select().from(eventsTable).where(eq(eventsTable.id, params.data.eventId));
+    if (!event) { res.status(404).json({ error: "Event not found" }); return; }
+    if (!assertAgencyAccess(req.currentUser, event.agencyId, res)) return;
+    req.log.info({ eventId: params.data.eventId, eventCustomerId: params.data.id }, "Removing customer from event");
+    await db.delete(eventCustomersTable)
+      .where(and(eq(eventCustomersTable.id, params.data.id), eq(eventCustomersTable.eventId, params.data.eventId)));
+    res.sendStatus(204);
+  } catch (err) { next(err); }
 });
 
 export default router;

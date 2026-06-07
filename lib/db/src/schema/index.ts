@@ -4,6 +4,7 @@ export * from "./surgeons";
 export * from "./procedures";
 export * from "./events";
 export * from "./eventSurgeons";
+export * from "./eventCustomers";
 export * from "./customers";
 export * from "./appointments";
 export * from "./questionnaires";

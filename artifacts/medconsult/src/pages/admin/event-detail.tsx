@@ -3,6 +3,7 @@ import { useParams } from "wouter";
 import {
   useGetEvent, useUpdateEvent, getGetEventQueryKey,
   useListEventSurgeons, useAddEventSurgeon, useUpdateEventSurgeon, useRemoveEventSurgeon, getListEventSurgeonsQueryKey,
+  useListEventCustomers, useAddEventCustomer, useRemoveEventCustomer, getListEventCustomersQueryKey,
   useListAppointments, useCreateAppointment, useDeleteAppointment, getListAppointmentsQueryKey,
   useListSurgeons, useListCustomers,
 } from "@workspace/api-client-react";
@@ -38,6 +39,10 @@ const addSurgeonSchema = z.object({
 const editSurgeonSchema = z.object({
   defaultFee: z.string().optional().or(z.literal("")),
   defaultSlotMinutes: z.string().optional().or(z.literal("")),
+});
+
+const addCustomerSchema = z.object({
+  customerId: z.string().min(1, "Please select a customer"),
 });
 
 const addAppointmentSchema = z.object({
@@ -332,6 +337,158 @@ function SurgeonsTab({ eventId }: { eventId: number }) {
                           </AlertDialogContent>
                         </AlertDialog>
                       </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Add Customer Dialog ───────────────────────────────────────────────────────
+
+function AddCustomerDialog({ eventId, assignedCustomerIds }: { eventId: number; assignedCustomerIds: number[] }) {
+  const [open, setOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { data: allCustomers = [] } = useListCustomers();
+  const addEventCustomer = useAddEventCustomer();
+
+  const availableCustomers = allCustomers.filter((c) => !assignedCustomerIds.includes(c.id));
+
+  const form = useForm<z.infer<typeof addCustomerSchema>>({
+    resolver: zodResolver(addCustomerSchema),
+    defaultValues: { customerId: "" },
+  });
+
+  const onSubmit = (values: z.infer<typeof addCustomerSchema>) => {
+    addEventCustomer.mutate({ eventId, data: { customerId: Number(values.customerId) } }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListEventCustomersQueryKey(eventId) });
+        toast({ title: "Customer added to event" });
+        setOpen(false);
+        form.reset();
+      },
+      onError: () => toast({ title: "Failed to add customer", variant: "destructive" }),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm"><Plus className="h-4 w-4 mr-1" />Add Customer</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Add Customer to Event</DialogTitle></DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField control={form.control} name="customerId" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Customer</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {availableCustomers.length === 0
+                      ? <SelectItem value="-" disabled>All customers already added</SelectItem>
+                      : availableCustomers.map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          {c.firstName} {c.lastName}{c.email ? ` — ${c.email}` : ""}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={addEventCustomer.isPending}>
+                {addEventCustomer.isPending ? "Adding…" : "Add Customer"}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Customers Tab ─────────────────────────────────────────────────────────────
+
+function CustomersTab({ eventId }: { eventId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { data: eventCustomers = [], isLoading } = useListEventCustomers(eventId);
+  const removeEventCustomer = useRemoveEventCustomer();
+
+  const assignedCustomerIds = eventCustomers.map((ec) => ec.customerId);
+
+  const handleRemove = (entryId: number, customerName: string) => {
+    removeEventCustomer.mutate({ eventId, id: entryId }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListEventCustomersQueryKey(eventId) });
+        toast({ title: `${customerName} removed from event` });
+      },
+      onError: () => toast({ title: "Failed to remove customer", variant: "destructive" }),
+    });
+  };
+
+  if (isLoading) return <div className="space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardTitle>Event Customers</CardTitle>
+        <AddCustomerDialog eventId={eventId} assignedCustomerIds={assignedCustomerIds} />
+      </CardHeader>
+      <CardContent>
+        {eventCustomers.length === 0 ? (
+          <p className="text-muted-foreground text-sm py-4 text-center">No customers added yet. Add a customer to get started.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {eventCustomers.map((ec) => {
+                const c = ec.customer;
+                const name = `${c.firstName} ${c.lastName}`;
+                return (
+                  <TableRow key={ec.id}>
+                    <TableCell className="font-medium">{name}</TableCell>
+                    <TableCell className="text-muted-foreground">{c.email ?? "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{c.phone ?? "—"}</TableCell>
+                    <TableCell className="text-right">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" title="Remove from event">
+                            <UserMinus className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove {name}?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will remove {name} from this event. Existing appointments will not be affected.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleRemove(ec.id, name)}>Remove</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </TableCell>
                   </TableRow>
                 );
@@ -692,6 +849,7 @@ export default function EventDetail() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="surgeons">Surgeons</TabsTrigger>
+          <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="appointments">Appointments</TabsTrigger>
         </TabsList>
 
@@ -709,6 +867,10 @@ export default function EventDetail() {
 
         <TabsContent value="surgeons" className="mt-4">
           <SurgeonsTab eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="customers" className="mt-4">
+          <CustomersTab eventId={eventId} />
         </TabsContent>
 
         <TabsContent value="appointments" className="mt-4">

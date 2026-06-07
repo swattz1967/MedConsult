@@ -412,6 +412,18 @@ export interface Customer {
   updatedAt: string;
 }
 
+export interface EventCustomer {
+  id: number;
+  eventId: number;
+  customerId: number;
+  createdAt: string;
+  customer: Customer;
+}
+
+export interface AddEventCustomerBody {
+  customerId: number;
+}
+
 export interface ReminderSettings {
   id: number;
   agencyId: number;

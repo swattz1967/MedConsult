@@ -599,6 +599,77 @@ export const RemoveEventSurgeonParams = zod.object({
 });
 
 /**
+ * @summary List customers registered to an event
+ */
+export const ListEventCustomersParams = zod.object({
+  eventId: zod.coerce.number(),
+});
+
+export const ListEventCustomersResponseItem = zod.object({
+  id: zod.number(),
+  eventId: zod.number(),
+  customerId: zod.number(),
+  createdAt: zod.string(),
+  customer: zod.object({
+    id: zod.number(),
+    agencyId: zod.number(),
+    userId: zod.number().nullish(),
+    firstName: zod.string(),
+    lastName: zod.string(),
+    email: zod.string().nullish(),
+    phone: zod.string().nullish(),
+    dialingCode: zod.string().nullish(),
+    nationality: zod.string().nullish(),
+    address: zod.string().nullish(),
+    postcode: zod.string().nullish(),
+    preferredLanguage: zod.string().nullish(),
+    medicalServicesInterest: zod.string().nullish(),
+    heightCm: zod.number().nullish(),
+    weightKg: zod.number().nullish(),
+    heightUnit: zod.enum(["cm", "ft", "null"]).nullish(),
+    weightUnit: zod.enum(["kg", "lbs", "null"]).nullish(),
+    declarationSigned: zod.boolean(),
+    declarationSignedAt: zod.string().nullish(),
+    earnedFees: zod
+      .number()
+      .nullish()
+      .describe(
+        "Sum of fees for completed appointments (only present on list endpoint)",
+      ),
+    pendingFees: zod
+      .number()
+      .nullish()
+      .describe(
+        "Sum of fees for scheduled appointments (only present on list endpoint)",
+      ),
+    createdAt: zod.string(),
+    updatedAt: zod.string(),
+  }),
+});
+export const ListEventCustomersResponse = zod.array(
+  ListEventCustomersResponseItem,
+);
+
+/**
+ * @summary Register a customer to an event
+ */
+export const AddEventCustomerParams = zod.object({
+  eventId: zod.coerce.number(),
+});
+
+export const AddEventCustomerBody = zod.object({
+  customerId: zod.number(),
+});
+
+/**
+ * @summary Remove a customer from an event
+ */
+export const RemoveEventCustomerParams = zod.object({
+  eventId: zod.coerce.number(),
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary List appointments
  */
 export const ListAppointmentsQueryParams = zod.object({

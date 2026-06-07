@@ -17,6 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AddEventCustomerBody,
   Agency,
   AgencyApiKeyResponse,
   AgencyEmailStats,
@@ -42,6 +43,7 @@ import type {
   DashboardSummary,
   EmailLogsResponse,
   Event,
+  EventCustomer,
   EventSurgeon,
   GetDashboardSummaryParams,
   GetReminderSettingsParams,
@@ -2833,6 +2835,267 @@ export const useRemoveEventSurgeon = <
   TContext
 > => {
   return useMutation(getRemoveEventSurgeonMutationOptions(options));
+};
+
+/**
+ * @summary List customers registered to an event
+ */
+export const getListEventCustomersUrl = (eventId: number) => {
+  return `/api/events/${eventId}/customers`;
+};
+
+export const listEventCustomers = async (
+  eventId: number,
+  options?: RequestInit,
+): Promise<EventCustomer[]> => {
+  return customFetch<EventCustomer[]>(getListEventCustomersUrl(eventId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListEventCustomersQueryKey = (eventId: number) => {
+  return [`/api/events/${eventId}/customers`] as const;
+};
+
+export const getListEventCustomersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listEventCustomers>>,
+  TError = ErrorType<unknown>,
+>(
+  eventId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEventCustomers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListEventCustomersQueryKey(eventId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listEventCustomers>>
+  > = ({ signal }) =>
+    listEventCustomers(eventId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!eventId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listEventCustomers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListEventCustomersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listEventCustomers>>
+>;
+export type ListEventCustomersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List customers registered to an event
+ */
+
+export function useListEventCustomers<
+  TData = Awaited<ReturnType<typeof listEventCustomers>>,
+  TError = ErrorType<unknown>,
+>(
+  eventId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEventCustomers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListEventCustomersQueryOptions(eventId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Register a customer to an event
+ */
+export const getAddEventCustomerUrl = (eventId: number) => {
+  return `/api/events/${eventId}/customers`;
+};
+
+export const addEventCustomer = async (
+  eventId: number,
+  addEventCustomerBody: AddEventCustomerBody,
+  options?: RequestInit,
+): Promise<EventCustomer> => {
+  return customFetch<EventCustomer>(getAddEventCustomerUrl(eventId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(addEventCustomerBody),
+  });
+};
+
+export const getAddEventCustomerMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addEventCustomer>>,
+    TError,
+    { eventId: number; data: BodyType<AddEventCustomerBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addEventCustomer>>,
+  TError,
+  { eventId: number; data: BodyType<AddEventCustomerBody> },
+  TContext
+> => {
+  const mutationKey = ["addEventCustomer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addEventCustomer>>,
+    { eventId: number; data: BodyType<AddEventCustomerBody> }
+  > = (props) => {
+    const { eventId, data } = props ?? {};
+
+    return addEventCustomer(eventId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddEventCustomerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addEventCustomer>>
+>;
+export type AddEventCustomerMutationBody = BodyType<AddEventCustomerBody>;
+export type AddEventCustomerMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Register a customer to an event
+ */
+export const useAddEventCustomer = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addEventCustomer>>,
+    TError,
+    { eventId: number; data: BodyType<AddEventCustomerBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addEventCustomer>>,
+  TError,
+  { eventId: number; data: BodyType<AddEventCustomerBody> },
+  TContext
+> => {
+  return useMutation(getAddEventCustomerMutationOptions(options));
+};
+
+/**
+ * @summary Remove a customer from an event
+ */
+export const getRemoveEventCustomerUrl = (eventId: number, id: number) => {
+  return `/api/events/${eventId}/customers/${id}`;
+};
+
+export const removeEventCustomer = async (
+  eventId: number,
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getRemoveEventCustomerUrl(eventId, id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getRemoveEventCustomerMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeEventCustomer>>,
+    TError,
+    { eventId: number; id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeEventCustomer>>,
+  TError,
+  { eventId: number; id: number },
+  TContext
+> => {
+  const mutationKey = ["removeEventCustomer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeEventCustomer>>,
+    { eventId: number; id: number }
+  > = (props) => {
+    const { eventId, id } = props ?? {};
+
+    return removeEventCustomer(eventId, id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveEventCustomerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeEventCustomer>>
+>;
+
+export type RemoveEventCustomerMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove a customer from an event
+ */
+export const useRemoveEventCustomer = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeEventCustomer>>,
+    TError,
+    { eventId: number; id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeEventCustomer>>,
+  TError,
+  { eventId: number; id: number },
+  TContext
+> => {
+  return useMutation(getRemoveEventCustomerMutationOptions(options));
 };
 
 /**

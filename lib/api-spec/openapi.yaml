@@ -685,6 +685,70 @@ paths:
         "204":
           description: Removed
 
+  # --- EVENT CUSTOMERS ---
+  /events/{eventId}/customers:
+    get:
+      operationId: listEventCustomers
+      tags: [events]
+      summary: List customers registered to an event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Event customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventCustomer"
+    post:
+      operationId: addEventCustomer
+      tags: [events]
+      summary: Register a customer to an event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddEventCustomerBody"
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventCustomer"
+  /events/{eventId}/customers/{id}:
+    delete:
+      operationId: removeEventCustomer
+      tags: [events]
+      summary: Remove a customer from an event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
   # --- APPOINTMENTS ---
   /appointments:
     get:
@@ -2083,6 +2147,34 @@ components:
           type: ["number", "null"]
         defaultSlotMinutes:
           type: ["integer", "null"]
+
+    EventCustomer:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventId:
+          type: integer
+        customerId:
+          type: integer
+        createdAt:
+          type: string
+        customer:
+          $ref: "#/components/schemas/Customer"
+      required:
+        - id
+        - eventId
+        - customerId
+        - createdAt
+        - customer
+
+    AddEventCustomerBody:
+      type: object
+      properties:
+        customerId:
+          type: integer
+      required:
+        - customerId
 
     Customer:
       type: object

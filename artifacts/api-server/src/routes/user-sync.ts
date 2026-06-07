@@ -6,6 +6,16 @@ import { getClerkUserId } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
+function resolveRole(email: string, existingRole?: string): string {
+  const ownerEmails = (process.env.APP_OWNER_EMAILS ?? "")
+    .split(",")
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (ownerEmails.includes(email.toLowerCase())) return "app_owner";
+  return existingRole ?? "customer";
+}
+
 router.post("/users/me/sync", async (req, res, next): Promise<void> => {
   const clerkId = getClerkUserId(req);
   if (!clerkId) {
@@ -20,22 +30,26 @@ router.post("/users/me/sync", async (req, res, next): Promise<void> => {
   }
 
   const { email, firstName, lastName } = parsed.data;
+  const role = resolveRole(email);
 
   try {
     req.log.info({ clerkId }, "Syncing user");
     const [existing] = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId));
+
     if (existing) {
+      const updatedRole = resolveRole(email, existing.role);
       const [updated] = await db
         .update(usersTable)
-        .set({ email, firstName: firstName ?? null, lastName: lastName ?? null })
+        .set({ email, firstName: firstName ?? null, lastName: lastName ?? null, role: updatedRole })
         .where(eq(usersTable.clerkId, clerkId))
         .returning();
       res.json(updated);
       return;
     }
+
     const [newUser] = await db
       .insert(usersTable)
-      .values({ clerkId, email, firstName: firstName ?? null, lastName: lastName ?? null, role: "customer" })
+      .values({ clerkId, email, firstName: firstName ?? null, lastName: lastName ?? null, role })
       .returning();
     res.json(newUser);
   } catch (err) {

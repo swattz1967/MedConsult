@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@clerk/react";
 import { useParams } from "wouter";
 import {
   useGetEvent, useUpdateEvent, getGetEventQueryKey,
@@ -819,7 +818,6 @@ export default function EventDetail() {
   const eventId = Number(id);
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { getToken } = useAuth();
   const [isDownloading, setIsDownloading] = useState(false);
 
   const { data: event, isLoading: isLoadingEvent } = useGetEvent(eventId);
@@ -828,9 +826,8 @@ export default function EventDetail() {
   const handleDownloadSchedule = useCallback(async () => {
     setIsDownloading(true);
     try {
-      const token = await getToken();
       const res = await fetch(`/api/events/${eventId}/schedule-pdf`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
       });
       if (!res.ok) throw new Error(`${res.status}`);
       const blob = await res.blob();
@@ -845,7 +842,7 @@ export default function EventDetail() {
     } finally {
       setIsDownloading(false);
     }
-  }, [eventId, getToken, toast]);
+  }, [eventId, toast]);
 
   const handleStatusChange = (status: "draft" | "published" | "closed") => {
     updateEvent.mutate({ id: eventId, data: { status } }, {

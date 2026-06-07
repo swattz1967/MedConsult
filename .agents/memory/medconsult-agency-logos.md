@@ -27,3 +27,18 @@ server-side PDF fetch.
 `/api/storage/objects/*`. The agencies create/update route validates that `logoUrl`
 must start with `/api/storage/agency-logos/` so a privileged user can't "publish" an
 arbitrary private object by setting it as their logo.
+
+## Logos in server-side PDFs
+
+PDF generation (schedule report, consultation record) must NOT HTTP-fetch
+`agency.logoUrl` — it is a RELATIVE path so `new URL()` throws and the fetch silently
+fails (logo then degrades to agency-name text). Instead read bytes directly from
+object storage via `ObjectStorageService.readLogoBuffer(logoUrl, maxBytes)`.
+
+**Also: PDFKit `doc.image()` only embeds PNG/JPEG.** The logo upload accepts SVG and
+WebP too (the seeded agency logo is SVG), so `readLogoBuffer` rasterizes any
+non-PNG/JPEG image to PNG with `sharp`. `sharp` is a native module — it's in the
+`build.mjs` esbuild `external` list and imported dynamically; don't try to bundle it.
+
+**Why:** an `<img>`-renderable URL is not the same as a PDFKit-embeddable image, and a
+relative URL can never be fetched over HTTP server-side.

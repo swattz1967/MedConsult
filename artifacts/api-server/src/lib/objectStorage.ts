@@ -154,6 +154,69 @@ export class ObjectStorageService {
     return objectFile;
   }
 
+  /**
+   * Read an agency logo's bytes directly from object storage, returning a
+   * PDFKit-embeddable image (PNG or JPEG).
+   *
+   * Agency `logoUrl` values are stored as the relative public path
+   * `/api/storage/agency-logos/<key>`. Server-side consumers (e.g. PDF
+   * generation) cannot HTTP-fetch a relative URL, so we resolve the object
+   * directly here. PDFKit only supports PNG/JPEG, so other accepted upload
+   * formats (SVG, WebP) are rasterized to PNG via sharp. Returns null on any
+   * error, if the object is not an image, or if it exceeds `maxBytes`.
+   */
+  async readLogoBuffer(
+    logoUrl: string,
+    maxBytes: number = 5 * 1024 * 1024
+  ): Promise<Buffer | null> {
+    const prefix = "/api/storage/agency-logos/";
+    if (!logoUrl.startsWith(prefix)) return null;
+    const key = logoUrl.slice(prefix.length);
+    if (!key) return null;
+    try {
+      const objectFile = await this.getObjectEntityFile(`/objects/${key}`);
+      const [metadata] = await objectFile.getMetadata();
+      const contentType = (metadata.contentType as string) || "";
+      if (!contentType.startsWith("image/")) return null;
+      const size = Number(metadata.size ?? 0);
+      if (size > maxBytes) return null;
+      const chunks: Buffer[] = [];
+      let total = 0;
+      const buf = await new Promise<Buffer | null>((resolve, reject) => {
+        const stream = objectFile.createReadStream();
+        stream.on("data", (chunk: Buffer) => {
+          total += chunk.length;
+          if (total > maxBytes) {
+            // Stop reading immediately rather than buffering an oversized object.
+            stream.destroy();
+            resolve(null);
+            return;
+          }
+          chunks.push(Buffer.from(chunk));
+        });
+        stream.on("end", () => resolve(Buffer.concat(chunks)));
+        stream.on("error", reject);
+      });
+      if (!buf) return null;
+
+      // PDFKit only embeds PNG and JPEG. Rasterize anything else (SVG, WebP).
+      if (contentType === "image/png" || contentType === "image/jpeg") {
+        return buf;
+      }
+      const sharp = (await import("sharp")).default;
+      return await sharp(buf, {
+        density: 300,
+        limitInputPixels: 24_000_000, // ~24MP cap against decompression bombs
+        failOn: "error",
+      })
+        .resize(360, 360, { fit: "inside", withoutEnlargement: true })
+        .png()
+        .toBuffer();
+    } catch {
+      return null;
+    }
+  }
+
   normalizeObjectEntityPath(rawPath: string): string {
     if (!rawPath.startsWith("https://storage.googleapis.com/")) {
       return rawPath;

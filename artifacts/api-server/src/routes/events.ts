@@ -19,9 +19,10 @@ import {
 } from "@workspace/api-zod";
 import { isAppOwner, isAdminOrOwner, assertAgencyAccess } from "../middlewares/auth";
 import PDFDocument from "pdfkit";
-import { fetchLogoBuffer } from "../lib/pdf";
+import { ObjectStorageService } from "../lib/objectStorage";
 
 const router: IRouter = Router();
+const objectStorageService = new ObjectStorageService();
 
 router.get("/events", async (req, res, next): Promise<void> => {
   if (!req.currentUser) {
@@ -415,7 +416,7 @@ router.get("/events/:eventId/schedule-pdf", async (req, res, next): Promise<void
       .where(eq(appointmentsTable.eventId, eventId))
       .orderBy(asc(appointmentsTable.startTime));
 
-    const logoBuffer = agency?.logoUrl ? await fetchLogoBuffer(agency.logoUrl) : null;
+    const logoBuffer = agency?.logoUrl ? await objectStorageService.readLogoBuffer(agency.logoUrl) : null;
 
     const BRAND    = agency?.primaryColor ?? "#1a6b5c";
     const LIGHT    = "#f0f9f6";

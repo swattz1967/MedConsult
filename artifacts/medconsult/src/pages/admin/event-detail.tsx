@@ -358,7 +358,9 @@ function AddCustomerDialog({ eventId, assignedCustomerIds }: { eventId: number; 
   const { data: allCustomers = [] } = useListCustomers();
   const addEventCustomer = useAddEventCustomer();
 
-  const availableCustomers = allCustomers.filter((c) => !assignedCustomerIds.includes(c.id));
+  const availableCustomers = allCustomers
+    .filter((c) => !assignedCustomerIds.includes(c.id))
+    .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
 
   const form = useForm<z.infer<typeof addCustomerSchema>>({
     resolver: zodResolver(addCustomerSchema),
@@ -701,7 +703,10 @@ function AppointmentsTab({ eventId, eventStartDate }: { eventId: number; eventSt
   const { data: appointments = [], isLoading } = useListAppointments({ eventId });
   const { data: eventSurgeons = [] } = useListEventSurgeons(eventId);
   const { data: allSurgeons = [] } = useListSurgeons();
-  const { data: customers = [] } = useListCustomers();
+  const { data: customersRaw = [] } = useListCustomers();
+  const customers = [...customersRaw].sort((a, b) =>
+    `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
+  );
   const deleteAppointment = useDeleteAppointment();
 
   const handleDelete = (id: number) => {

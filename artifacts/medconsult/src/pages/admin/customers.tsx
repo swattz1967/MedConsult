@@ -201,7 +201,10 @@ export default function CustomersList() {
           (c.email ?? "").toLowerCase().includes(q) ||
           (c.nationality ?? "").toLowerCase().includes(q)
         );
-      });
+      })
+      .sort((a, b) =>
+        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
+      );
   }, [customers, filter, search]);
 
   // Customers in current filtered view that can receive a reminder

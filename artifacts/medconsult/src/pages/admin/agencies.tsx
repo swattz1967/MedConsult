@@ -490,7 +490,7 @@ const agencySchema = z.object({
   }, { message: "Please enter a valid website address" }),
   primaryColor: z.string().optional().or(z.literal("")),
   secondaryColor: z.string().optional().or(z.literal("")),
-  logoUrl: z.string().url().optional().or(z.literal("")),
+  logoUrl: z.string().optional().or(z.literal("")),
   address: z.string().optional().or(z.literal("")),
   currency: z.enum(["GBP", "EUR", "TRY"]).default("GBP"),
 });

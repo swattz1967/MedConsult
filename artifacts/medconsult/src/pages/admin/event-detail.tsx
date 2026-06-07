@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@clerk/react";
 import { useParams } from "wouter";
 import {
   useGetEvent, useUpdateEvent, getGetEventQueryKey,
@@ -818,9 +819,33 @@ export default function EventDetail() {
   const eventId = Number(id);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { getToken } = useAuth();
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const { data: event, isLoading: isLoadingEvent } = useGetEvent(eventId);
   const updateEvent = useUpdateEvent();
+
+  const handleDownloadSchedule = useCallback(async () => {
+    setIsDownloading(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/events/${eventId}/schedule-pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `schedule-event-${eventId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Failed to download schedule", variant: "destructive" });
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [eventId, getToken, toast]);
 
   const handleStatusChange = (status: "draft" | "published" | "closed") => {
     updateEvent.mutate({ id: eventId, data: { status } }, {
@@ -847,11 +872,10 @@ export default function EventDetail() {
           </Badge>
         </div>
         <div className="flex gap-2">
-          <a href={`/api/events/${eventId}/schedule-pdf`} target="_blank" rel="noopener noreferrer">
-            <Button variant="outline">
-              <FileDown className="mr-2 h-4 w-4" />Download Schedule
-            </Button>
-          </a>
+          <Button variant="outline" onClick={handleDownloadSchedule} disabled={isDownloading}>
+            <FileDown className="mr-2 h-4 w-4" />
+            {isDownloading ? "Generating…" : "Download Schedule"}
+          </Button>
           {event.status === "draft" && <Button onClick={() => handleStatusChange("published")}>Publish Event</Button>}
           {event.status === "published" && <Button variant="destructive" onClick={() => handleStatusChange("closed")}>Close Event</Button>}
           {event.status === "closed" && <Button variant="outline" onClick={() => handleStatusChange("draft")}>Revert to Draft</Button>}

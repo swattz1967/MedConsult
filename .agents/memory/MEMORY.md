@@ -1,0 +1,1 @@
+- [MedConsult web auth path](medconsult-web-auth.md) — authenticated /api calls use Clerk Bearer token via customFetch, NOT cookies; cookie/img-src fetches 401. Use exported customFetch for blob downloads.

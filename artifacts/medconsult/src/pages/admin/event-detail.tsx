@@ -5,7 +5,7 @@ import {
   useListEventSurgeons, useAddEventSurgeon, useUpdateEventSurgeon, useRemoveEventSurgeon, getListEventSurgeonsQueryKey,
   useListEventCustomers, useAddEventCustomer, useRemoveEventCustomer, getListEventCustomersQueryKey,
   useListAppointments, useCreateAppointment, useDeleteAppointment, getListAppointmentsQueryKey,
-  useListSurgeons, useListCustomers,
+  useListSurgeons, useListCustomers, customFetch,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAgency } from "@/contexts/AgencyContext";
@@ -826,11 +826,9 @@ export default function EventDetail() {
   const handleDownloadSchedule = useCallback(async () => {
     setIsDownloading(true);
     try {
-      const res = await fetch(`/api/events/${eventId}/schedule-pdf`, {
-        credentials: "include",
+      const blob = await customFetch<Blob>(`/api/events/${eventId}/schedule-pdf`, {
+        responseType: "blob",
       });
-      if (!res.ok) throw new Error(`${res.status}`);
-      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
